@@ -540,6 +540,7 @@ def generate_ad_miner_for_client(clean_slug: str) -> dict:
 
     render_dir = AD_MINER_DIR / f"render_{clean_slug}"
     if render_dir.exists():
+        logger.info(f"Nettoyage du dossier render existant: {render_dir}")
         shutil.rmtree(render_dir)
 
     command = [
@@ -555,6 +556,7 @@ def generate_ad_miner_for_client(clean_slug: str) -> dict:
         "-p",
         NEO4J_PASSWORD,
     ]
+    logger.info(f"Lancement AD-Miner pour {clean_slug}")
     result = subprocess.run(
         command, cwd=str(AD_MINER_DIR), capture_output=True, text=True, timeout=900
     )
@@ -570,9 +572,20 @@ def generate_ad_miner_for_client(clean_slug: str) -> dict:
         )
 
     if not render_dir.exists():
+        logger.error(f"AD-Miner terminé mais le dossier render n'existe pas: {render_dir}")
         raise HTTPException(
             status_code=500, detail="AD-Miner terminé mais rapport introuvable."
         )
+
+    # Vérifier que le rapport contient bien des fichiers
+    html_files = list(render_dir.rglob("*.html"))
+    if not html_files:
+        logger.error(f"AD-Miner a généré un dossier mais aucun fichier HTML: {render_dir}")
+        raise HTTPException(
+            status_code=500, detail="AD-Miner n'a généré aucun rapport HTML."
+        )
+    
+    logger.info(f"AD-Miner a généré {len(html_files)} fichiers HTML dans {render_dir}")
 
     target_dir = client_path / "ad-miner"
     # Copy to a temp dir first, then atomically swap — évite les ENOTEMPTY
@@ -580,10 +593,18 @@ def generate_ad_miner_for_client(clean_slug: str) -> dict:
     tmp_dir = target_dir.parent / f".ad-miner-tmp-{clean_slug}"
     if tmp_dir.exists():
         shutil.rmtree(tmp_dir)
+    
+    logger.info(f"Copie du rapport de {render_dir} vers {tmp_dir}")
     shutil.copytree(render_dir, tmp_dir)
+    
     if target_dir.exists():
+        logger.info(f"Suppression de l'ancien rapport: {target_dir}")
         shutil.rmtree(target_dir)
+    
+    logger.info(f"Renommage de {tmp_dir} vers {target_dir}")
     tmp_dir.rename(target_dir)
+    
+    logger.info(f"Rapport AD-Miner copié avec succès vers {target_dir}")
 
     warning = ""
     if result.returncode != 0:
@@ -672,6 +693,11 @@ def _full_audit_background(
 
 def _ad_miner_background(job_id: str, clean_slug: str):
     try:
+        # Attendre que BloodHound finisse l'ingestion avant de lancer AD-Miner
+        job_step(job_id, "Attente de la fin de l'ingestion BloodHound...")
+        wait_for_bloodhound_ingestion(job_id=job_id, max_wait=600)
+        log_event(clean_slug, "bloodhound_ingest_finished_before_ad_miner")
+        
         job_step(job_id, f"Génération AD-Miner pour {clean_slug}...")
         result = generate_ad_miner_for_client(clean_slug)
         log_event(clean_slug, "ad_miner_generated")
@@ -824,6 +850,22 @@ async def upload_pingcastle(slug: str, report: UploadFile = File(...)):
     }
 
 
+def cleanup_old_sharphound_files(client_path: Path):
+    """Supprime tous les anciens fichiers SharpHound pour éviter les conflits"""
+    sh_dir = client_path / "sources" / "sharphound"
+    if not sh_dir.exists():
+        return
+    
+    zip_files = list(sh_dir.glob("*.zip"))
+    for old_file in zip_files:
+        try:
+            old_file.unlink()
+            logger.info(f"Supprimé ancien fichier SharpHound: {old_file.name}")
+            log_event(client_path.name, f"sharphound_cleanup file={old_file.name}")
+        except Exception as e:
+            logger.warning(f"Impossible de supprimer {old_file.name}: {e}")
+
+
 @app.post("/api/clients/{slug}/sharphound")
 async def upload_sharphound_only(slug: str, zip_file: UploadFile = File(...)):
     clean_slug = sanitize_slug(slug)
@@ -836,6 +878,10 @@ async def upload_sharphound_only(slug: str, zip_file: UploadFile = File(...)):
             status_code=400, detail="Le fichier SharpHound doit être une archive ZIP."
         )
     ensure_client_dirs(client_path)
+    
+    # Nettoyer les anciens fichiers SharpHound avant d'en importer un nouveau
+    cleanup_old_sharphound_files(client_path)
+    
     ts = now_slug()
     source_file = client_path / "sources" / "sharphound" / f"sharphound_{ts}.zip"
     content = await zip_file.read()
@@ -858,9 +904,15 @@ async def upload_sharphound_only(slug: str, zip_file: UploadFile = File(...)):
         clean_slug,
         f"bloodhound_ingest_started upload_id={upload_result.get('upload_id')}",
     )
+    
+    # Attendre que BloodHound finisse l'ingestion avant de retourner
+    job_step(None, "Attente de la fin de l'ingestion BloodHound...")
+    wait_for_bloodhound_ingestion(job_id=None, max_wait=600)
+    log_event(clean_slug, "bloodhound_ingest_finished")
+    
     return {
         "status": "ok",
-        "message": "ZIP SharpHound importé dans BloodHound.",
+        "message": "ZIP SharpHound importé dans BloodHound et ingestion terminée.",
         "bloodhound": upload_result,
     }
 
