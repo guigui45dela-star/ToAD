@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import shutil
@@ -6,12 +7,18 @@ import subprocess
 import threading
 import time
 import uuid
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
 import requests
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
+from starlette.responses import RedirectResponse
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("toad")
 
 ROOT = Path("/data")
 STATIC_DIR = Path("/src")
@@ -32,11 +39,57 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 
 INGEST_WAIT_SECONDS = int(os.getenv("INGEST_WAIT_SECONDS", "30"))
 BLOODHOUND_MODE = os.getenv("BLOODHOUND_MODE", "local")
+API_TOKEN = os.getenv("API_TOKEN", "")
 
-MAX_PINGCASTLE_SIZE = 50 * 1024 * 1024  # 50 MB
-MAX_SHARPHOUND_SIZE = 500 * 1024 * 1024  # 500 MB
+MAX_PINGCASTLE_SIZE = 50 * 1024 * 1024
+MAX_SHARPHOUND_SIZE = 500 * 1024 * 1024
+
+RATE_LIMIT_MAX = 120
+RATE_LIMIT_WINDOW = 60
 
 app = FastAPI()
+_job_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="toad-job")
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    if API_TOKEN and request.url.path.startswith("/api/") and not request.url.path.startswith("/api/setup") and not request.url.path.startswith("/api/health"):
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header != f"Bearer {API_TOKEN}":
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+    return response
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    _rate_limit_store[client_ip] = [t for t in _rate_limit_store[client_ip] if now - t < RATE_LIMIT_WINDOW]
+    if len(_rate_limit_store[client_ip]) >= RATE_LIMIT_MAX:
+        return JSONResponse(status_code=429, content={"detail": "Trop de requêtes, veuillez réessayer plus tard."})
+    _rate_limit_store[client_ip].append(now)
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def setup_redirect_middleware(request: Request, call_next):
+    if not is_setup_complete() and request.method == "GET":
+        path = request.url.path
+        if not path.startswith("/setup") and not path.startswith("/api/setup") and not path.startswith("/api/health") and not path.startswith("/assets"):
+            return RedirectResponse("/setup")
+    return await call_next(request)
 
 
 def is_setup_complete() -> bool:
@@ -76,6 +129,7 @@ def create_job(label: str) -> str:
             "message": "Démarrage...",
             "steps": [],
             "result": None,
+            "created_at": time.time(),
         }
     return job_id
 
@@ -121,16 +175,16 @@ def write_bloodhound_status(slug: str, name: str, filename: str, upload_id: str 
             ),
             encoding="utf-8",
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to write BH status: {e}")
 
 
 def read_bloodhound_status() -> dict:
     try:
         if BH_STATUS_FILE.exists():
             return json.loads(BH_STATUS_FILE.read_text(encoding="utf-8"))
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to read BH status: {e}")
     return {
         "slug": None,
         "name": None,
@@ -156,8 +210,8 @@ def clear_bloodhound_status():
             ),
             encoding="utf-8",
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to clear BH status: {e}")
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -169,11 +223,13 @@ def sanitize_slug(value: str) -> str:
     value = re.sub(r"[^a-z0-9_-]", "", value)
     if not value:
         raise HTTPException(status_code=400, detail="Slug client invalide.")
+    if len(value) > 64:
+        raise HTTPException(status_code=400, detail="Slug trop long (max 64 caractères).")
     return value
 
 
 def now_slug() -> str:
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
+    return datetime.now().strftime("%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
 
 
 def client_display_name(client_path: Path, slug: str) -> str:
@@ -184,8 +240,8 @@ def client_display_name(client_path: Path, slug: str) -> str:
             name = data.get("name")
             if name:
                 return name
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to read client name: {e}")
     return slug.replace("-", " ").replace("_", " ").title()
 
 
@@ -227,7 +283,8 @@ def write_client_metadata(client_path: Path, name: str, slug: str, extra: dict =
     if metadata_file.exists():
         try:
             metadata = json.loads(metadata_file.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to read metadata: {e}")
             metadata = {}
     else:
         metadata = {}
@@ -248,8 +305,8 @@ def read_client_metadata(client_path: Path) -> dict:
     if metadata_file.exists():
         try:
             return json.loads(metadata_file.read_text(encoding="utf-8"))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to read client metadata: {e}")
     return {}
 
 
@@ -265,8 +322,8 @@ def log_event(slug: str, event: str):
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(f"[{ts}] {event}\n")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to log event: {e}")
 
 
 def count_sharphound_zips(client_path: Path) -> int:
@@ -274,6 +331,15 @@ def count_sharphound_zips(client_path: Path) -> int:
     if not sh_dir.exists():
         return 0
     return sum(1 for f in sh_dir.iterdir() if f.suffix.lower() == ".zip")
+
+
+def _validate_html_content(content: bytes) -> bool:
+    text_start = content[:1024].decode("utf-8", errors="ignore").strip().lower()
+    return text_start.startswith(("<!", "<html", "<head", "<body", "<div", "<p", "<span", "<table", "<script"))
+
+
+def _validate_zip_magic(content: bytes) -> bool:
+    return content[:4] == b"PK\x03\x04" or content[:4] == b"PK\x05\x06"
 
 
 # ─── Docker / BloodHound ──────────────────────────────────────────────────────
@@ -310,20 +376,23 @@ def bloodhound_login() -> str:
             f"{BLOODHOUND_URL}/api/v2/login", json=payload, timeout=60
         )
     except Exception as e:
+        logger.error(f"BloodHound connection failed: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Impossible de contacter BloodHound : {e}"
+            status_code=500, detail="Impossible de contacter BloodHound"
         )
     if response.status_code >= 400:
+        logger.error(f"BloodHound auth failed: {response.status_code} - {response.text}")
         raise HTTPException(
             status_code=500,
-            detail=f"Authentification BloodHound refusée : {response.text}",
+            detail="Authentification BloodHound échouée",
         )
     data = response.json()
     try:
         return data["data"]["session_token"]
-    except Exception:
+    except Exception as e:
+        logger.error(f"Unexpected BloodHound login response: {data}")
         raise HTTPException(
-            status_code=500, detail=f"Réponse login BloodHound inattendue : {data}"
+            status_code=500, detail="Erreur de connexion BloodHound"
         )
 
 
@@ -338,15 +407,17 @@ def upload_sharphound_to_bloodhound(zip_path: Path) -> dict:
         f"{BLOODHOUND_URL}/api/v2/file-upload/start", headers=headers, timeout=60
     )
     if start.status_code >= 400:
+        logger.error(f"BloodHound upload start failed: {start.text}")
         raise HTTPException(
             status_code=500,
-            detail=f"Impossible de créer le job BloodHound : {start.text}",
+            detail="Impossible de créer le job BloodHound",
         )
     try:
         upload_id = start.json()["data"]["id"]
-    except Exception:
+    except Exception as e:
+        logger.error(f"Unexpected upload start response: {start.text}")
         raise HTTPException(
-            status_code=500, detail=f"Réponse start upload inattendue : {start.text}"
+            status_code=500, detail="Erreur lors de l'upload SharpHound"
         )
 
     upload_headers = {
@@ -362,8 +433,9 @@ def upload_sharphound_to_bloodhound(zip_path: Path) -> dict:
             timeout=600,
         )
     if upload.status_code >= 400:
+        logger.error(f"SharpHound upload failed: {upload.text}")
         raise HTTPException(
-            status_code=500, detail=f"Upload ZIP échoué : {upload.text}"
+            status_code=500, detail="Upload ZIP échoué"
         )
 
     end = requests.post(
@@ -372,8 +444,9 @@ def upload_sharphound_to_bloodhound(zip_path: Path) -> dict:
         timeout=120,
     )
     if end.status_code >= 400:
+        logger.error(f"BloodHound upload end failed: {end.text}")
         raise HTTPException(
-            status_code=500, detail=f"Fin du job BloodHound échouée : {end.text}"
+            status_code=500, detail="Erreur lors de la finalisation de l'upload"
         )
 
     return {"upload_id": upload_id, "message": "ZIP SharpHound envoyé à BloodHound."}
@@ -490,9 +563,10 @@ def generate_ad_miner_for_client(clean_slug: str) -> dict:
     report_generated = render_dir.exists() and any(render_dir.rglob("*.html"))
 
     if result.returncode != 0 and not report_generated:
+        logger.error(f"AD-Miner failed for {clean_slug}: {result.stderr or result.stdout}")
         raise HTTPException(
             status_code=500,
-            detail=f"Erreur AD-Miner : {result.stderr or result.stdout}",
+            detail="Erreur lors de la génération AD-Miner",
         )
 
     if not render_dir.exists():
@@ -665,9 +739,18 @@ def get_bloodhound_status():
     return read_bloodhound_status()
 
 
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "timestamp": datetime.now().isoformat(), "version": "1.2.0"}
+
+
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: str):
+    now = time.time()
     with _jobs_lock:
+        expired = [jid for jid, j in _jobs.items() if now - j.get("created_at", 0) > 3600]
+        for jid in expired:
+            del _jobs[jid]
         if job_id not in _jobs:
             raise HTTPException(status_code=404, detail="Job introuvable.")
         return dict(_jobs[job_id])
@@ -727,6 +810,10 @@ async def upload_pingcastle(slug: str, report: UploadFile = File(...)):
         raise HTTPException(
             status_code=413, detail="Fichier trop volumineux (max 50 Mo)."
         )
+    if not _validate_html_content(content):
+        raise HTTPException(
+            status_code=400, detail="Le fichier ne semble pas être un rapport HTML valide."
+        )
     source_file.write_bytes(content)
     target_file.write_bytes(content)
     log_event(clean_slug, f"pingcastle_uploaded file={source_file.name}")
@@ -755,6 +842,10 @@ async def upload_sharphound_only(slug: str, zip_file: UploadFile = File(...)):
     if len(content) > MAX_SHARPHOUND_SIZE:
         raise HTTPException(
             status_code=413, detail="Fichier trop volumineux (max 500 Mo)."
+        )
+    if not _validate_zip_magic(content):
+        raise HTTPException(
+            status_code=400, detail="Le fichier ne semble pas être une archive ZIP valide."
         )
     source_file.write_bytes(content)
     log_event(clean_slug, f"sharphound_uploaded file={source_file.name}")
@@ -825,10 +916,7 @@ def generate_ad_miner(slug: str):
     if not client_path.exists():
         raise HTTPException(status_code=404, detail="Client introuvable.")
     job_id = create_job(f"AD-Miner — {clean_slug}")
-    t = threading.Thread(
-        target=_ad_miner_background, args=(job_id, clean_slug), daemon=True
-    )
-    t.start()
+    _job_executor.submit(_ad_miner_background, job_id, clean_slug)
     return {"job_id": job_id, "status": "running"}
 
 
@@ -867,12 +955,7 @@ async def create_full_audit(
         )
 
     job_id = create_job(f"Audit complet — {clean_name}")
-    t = threading.Thread(
-        target=_full_audit_background,
-        args=(job_id, clean_name, clean_slug, pc_bytes, sh_bytes),
-        daemon=True,
-    )
-    t.start()
+    _job_executor.submit(_full_audit_background, job_id, clean_name, clean_slug, pc_bytes, sh_bytes)
     return {
         "job_id": job_id,
         "status": "running",
@@ -886,13 +969,15 @@ def reset_bloodhound():
         log_event("_system", "bloodhound_reset_started")
         down = run_bloodhound_compose(["down", "-v"])
         if down.returncode != 0:
+            logger.error(f"Docker compose down failed: {down.stderr}")
             raise HTTPException(
-                status_code=500, detail=f"Erreur docker compose down -v : {down.stderr}"
+                status_code=500, detail="Erreur lors de la réinitialisation BloodHound"
             )
         up = run_bloodhound_compose(["up", "-d"])
         if up.returncode != 0:
+            logger.error(f"Docker compose up failed: {up.stderr}")
             raise HTTPException(
-                status_code=500, detail=f"Erreur docker compose up -d : {up.stderr}"
+                status_code=500, detail="Erreur lors du redémarrage BloodHound"
             )
         clear_bloodhound_status()
         log_event("_system", "bloodhound_reset_done")
@@ -992,6 +1077,14 @@ def complete_setup(data: dict):
         "message": "Configuration sauvegardée. Redémarrez le conteneur pour appliquer les changements.",
         "restart_required": True,
     }
+
+
+@app.get("/assets/{filename}")
+def serve_asset(filename: str):
+    asset_path = STATIC_DIR / "assets" / filename
+    if not asset_path.exists() or ".." in filename or "/" in filename:
+        raise HTTPException(status_code=404)
+    return FileResponse(asset_path)
 
 
 @app.api_route("/", methods=["GET", "HEAD"])

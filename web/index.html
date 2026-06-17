@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Audit Active Directory — GI Informatique</title>
+<link rel="icon" type="image/png" href="/assets/logo.png">
+<title>ToAD — Plateforme Audit Active Directory</title>
 <style>
 :root {
   --bg:         #080f1c;
@@ -698,8 +699,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   <div class="header-brand">
     <div class="brand-icon"><img src="/assets/logo.png" alt="ToAD"></div>
     <div>
-      <div class="brand-title">Portail Audit Active Directory</div>
-      <div class="brand-sub">GI Informatique</div>
+      <div class="brand-title">Plateforme Audit Active Directory</div>
+      <div class="brand-sub">ToAD</div>
     </div>
   </div>
   <div class="header-right">
@@ -802,29 +803,21 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
         <button class="modal-close" onclick="closeModal('modal-rappel')">x</button>
       </div>
       <div class="rappel-menu-grid">
-        <button class="rappel-menu-item" onclick="showRappel('rt-portail','Portail — Procédure complète')">
+        <button class="rappel-menu-item" onclick="showRappel('rt-portail','Portail — Procédure')">
           <div class="rappel-menu-item-title">Portail</div>
-          <div class="rappel-menu-item-desc">Workflow complet : vider BH, audit, import, consultation</div>
+          <div class="rappel-menu-item-desc">Vider BH → Audit complet → Consulter</div>
         </button>
         <button class="rappel-menu-item" onclick="showRappel('rt-pingcastle','PingCastle')">
           <div class="rappel-menu-item-title">PingCastle</div>
-          <div class="rappel-menu-item-desc">Lancement, commandes, fichiers générés</div>
+          <div class="rappel-menu-item-desc">Commande et fichier à uploader</div>
         </button>
         <button class="rappel-menu-item" onclick="showRappel('rt-sharphound','SharpHound — Windows')">
           <div class="rappel-menu-item-title">SharpHound (Windows)</div>
-          <div class="rappel-menu-item-desc">Préparation, collecte complète, gestion Defender / ESET / Bitdefender</div>
+          <div class="rappel-menu-item-desc">Préparation, exclusion AV, collecte</div>
         </button>
-        <button class="rappel-menu-item" onclick="showRappel('rt-bh-python','SharpHound — Linux (bloodhound-python)')">
+        <button class="rappel-menu-item" onclick="showRappel('rt-bh-python','SharpHound — Linux')">
           <div class="rappel-menu-item-title">SharpHound depuis Linux</div>
-          <div class="rappel-menu-item-desc">bloodhound-python : aucun AV, depuis Kali / WSL / Debian</div>
-        </button>
-        <button class="rappel-menu-item" onclick="showRappel('rt-vm','VM d\'audit Hyper-V')">
-          <div class="rappel-menu-item-title">VM d'audit Hyper-V</div>
-          <div class="rappel-menu-item-desc">Template, jonction domaine, réinitialisation par snapshot</div>
-        </button>
-        <button class="rappel-menu-item" onclick="showRappel('rt-av','Gestion antivirus')">
-          <div class="rappel-menu-item-title">Gestion antivirus</div>
-          <div class="rappel-menu-item-desc">Exclusions Defender, ESET PROTECT, Bitdefender GravityZone</div>
+          <div class="rappel-menu-item-desc">Installation, commande, ports</div>
         </button>
       </div>
     </div>
@@ -842,10 +835,9 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
         <div class="rappel-step">
           <div class="rappel-num" style="background:var(--red)">!</div>
           <div class="rappel-body">
-            <div class="rappel-tool">Avant tout — Vider BloodHound <span class="tool-badge portal">Obligatoire</span></div>
+            <div class="rappel-tool">Vider BloodHound <span class="tool-badge portal">Obligatoire</span></div>
             <div class="rappel-desc">
-              Cliquer sur <strong>Vider BloodHound</strong> avant chaque nouvel audit client.
-              BloodHound ne supporte pas plusieurs clients — mélanger les données fausse tous les chemins d'attaque.
+              Cliquer sur <strong>Vider BloodHound</strong> avant chaque audit.
               L'indicateur en haut du portail confirme que BloodHound est vide.
             </div>
           </div>
@@ -854,35 +846,16 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
         <div class="rappel-step">
           <div class="rappel-num">1</div>
           <div class="rappel-body">
-            <div class="rappel-tool">Audit complet <span class="tool-badge portal">Recommandé</span></div>
-            <div class="rappel-desc">Remplir le formulaire <strong>Audit complet</strong> :</div>
-            <div class="code-block"><span class="code-comment">Nom affiché  →  ex: Mairie de Bordeaux</span>
-<span class="code-comment">Slug         →  ex: mbordeaux  (minuscules, sans espaces)</span>
-<span class="code-comment">PingCastle   →  ad_hc_domaine.client.local.html</span>
-<span class="code-comment">SharpHound   →  Audit_Client.zip</span></div>
-            <div class="rappel-desc" style="margin-top:8px">Le portail gère : archivage, import BloodHound, attente ingestion, génération AD-Miner. Durée : 2 à 20 min.</div>
+            <div class="rappel-tool">Audit complet</div>
+            <div class="rappel-desc">Remplir le formulaire <strong>Audit complet</strong> avec le fichier PingCastle (HTML) et le ZIP SharpHound.</div>
           </div>
         </div>
         <hr class="rappel-divider">
         <div class="rappel-step">
           <div class="rappel-num">2</div>
           <div class="rappel-body">
-            <div class="rappel-tool">Actions unitaires <span class="tool-badge portal">Si besoin</span></div>
-            <div class="rappel-desc">Bouton <strong>Actions</strong> sur chaque carte client pour refaire une étape :</div>
-            <div class="code-block"><span class="code-comment">Importer PingCastle  →  met à jour le rapport publié</span>
-<span class="code-comment">Importer SharpHound  →  renvoi dans BloodHound</span>
-<span class="code-comment">Générer AD-Miner     →  régénère avec les données BH actuelles</span></div>
-          </div>
-        </div>
-        <hr class="rappel-divider">
-        <div class="rappel-step">
-          <div class="rappel-num">3</div>
-          <div class="rappel-body">
-            <div class="rappel-tool">Consultation</div>
-            <div class="rappel-desc">
-              Rapports disponibles sur les cartes clients une fois générés.
-              Sources archivées dans <code style="font-family:monospace;color:var(--blue)">clients/&lt;slug&gt;/sources/</code>.
-            </div>
+            <div class="rappel-tool">Consulter les rapports</div>
+            <div class="rappel-desc">Rapports disponibles sur les cartes clients une fois générés (2 à 20 min).</div>
           </div>
         </div>
       </div>
@@ -892,32 +865,16 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
         <div class="rappel-step">
           <div class="rappel-num">1</div>
           <div class="rappel-body">
-            <div class="rappel-tool">Pré-requis <span class="tool-badge windows">Machine jointe au domaine</span></div>
-            <div class="rappel-desc">Compte utilisateur du domaine suffisant — pas besoin de droits admin pour le healthcheck.</div>
+            <div class="rappel-tool">Lancer PingCastle</div>
+            <div class="code-block">.\PingCastle.exe --healthcheck</div>
           </div>
         </div>
         <hr class="rappel-divider">
         <div class="rappel-step">
           <div class="rappel-num">2</div>
           <div class="rappel-body">
-            <div class="rappel-tool">Lancement</div>
-            <div class="code-block"><span class="code-comment"># Mode silencieux (recommandé)</span>
-.\PingCastle.exe --healthcheck
-
-<span class="code-comment"># Domaine spécifique</span>
-.\PingCastle.exe --healthcheck --server domaine.client.local
-
-<span class="code-comment"># Mode interactif : double-clic → option 1 (healthcheck)</span></div>
-          </div>
-        </div>
-        <hr class="rappel-divider">
-        <div class="rappel-step">
-          <div class="rappel-num">3</div>
-          <div class="rappel-body">
-            <div class="rappel-tool">Fichiers générés</div>
-            <div class="code-block"><span class="code-comment">ad_hc_domaine.client.local.html  ← uploader sur le portail</span>
-<span class="code-comment">ad_hc_domaine.client.local.xml   ← conserver en source</span></div>
-            <div class="rappel-info" style="margin-top:8px">PingCastle est rarement bloqué par les AV — pas d'exclusion nécessaire.</div>
+            <div class="rappel-tool">Uploader le fichier HTML</div>
+            <div class="rappel-desc">Fichier généré : <code style="font-family:monospace;color:var(--blue)">ad_hc_domaine.client.local.html</code> — à uploader sur le portail.</div>
           </div>
         </div>
       </div>
@@ -927,54 +884,35 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
         <div class="rappel-step">
           <div class="rappel-num">1</div>
           <div class="rappel-body">
-            <div class="rappel-tool">Préparation <span class="tool-badge windows">Machine jointe au domaine</span></div>
+            <div class="rappel-tool">Préparer le dossier + exclusion AV <span class="tool-badge windows">PowerShell admin</span></div>
             <div class="code-block">New-Item -ItemType Directory -Path "C:\AuditAD" -Force
 Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
-            <div class="rappel-desc" style="margin-top:8px">Copier <strong>SharpHound.exe</strong> dans <code style="font-family:monospace;color:var(--blue)">C:\AuditAD\</code>.</div>
           </div>
         </div>
         <hr class="rappel-divider">
         <div class="rappel-step">
           <div class="rappel-num">2</div>
           <div class="rappel-body">
-            <div class="rappel-tool">Collecte</div>
+            <div class="rappel-tool">Lancer SharpHound</div>
             <div class="code-block">.\SharpHound.exe -c All --zipfilename Audit_Client.zip</div>
-            <div class="rappel-desc" style="margin-top:8px">
-              <code style="font-family:monospace;color:var(--blue)">-c All</code> : utilisateurs, groupes, GPO, sessions, ACLs, trusts, ADCS.
-              Sans ce flag le rapport AD-Miner sera incomplet. Durée : 2 à 15 min.
-            </div>
           </div>
         </div>
         <hr class="rappel-divider">
         <div class="rappel-step">
-          <div class="rappel-num">3</div>
+          <div class="rappel-num" style="background:var(--green)">!</div>
           <div class="rappel-body">
-            <div class="rappel-tool">Si AV bloque malgré l'exclusion</div>
-            <div class="rappel-desc">Essayer le renommage de l'exécutable avant lancement :</div>
-            <div class="code-block">Copy-Item SharpHound.exe -Destination C:\AuditAD\svc_audit.exe
-.\svc_audit.exe -c All --zipfilename Audit_Client.zip</div>
-            <div class="rappel-desc" style="margin-top:8px">Si toujours bloqué : utiliser <strong>bloodhound-python depuis Linux</strong> (voir rappel dédié) ou la <strong>VM Hyper-V</strong>.</div>
+            <div class="rappel-tool">Note</div>
+            <div class="rappel-desc">Si l'AV bloque, renommer SharpHound.exe ou utiliser bloodhound-python depuis Linux.</div>
           </div>
         </div>
       </div>
 
-      <!-- bloodhound-python Linux -->
+      <!-- SharpHound Linux -->
       <div class="rappel-detail" id="rt-bh-python" style="display:none">
-        <div class="rappel-step">
-          <div class="rappel-num" style="background:var(--green)">!</div>
-          <div class="rappel-body">
-            <div class="rappel-tool">Avantage principal <span class="tool-badge linux">Linux / WSL / Kali</span></div>
-            <div class="rappel-desc">
-              bloodhound-python tourne entièrement sur Linux — l'AV Windows du client n'a aucune visibilité.
-              Pas de VM, pas d'exclusion à demander. Seul pré-requis : accès réseau au DC.
-            </div>
-          </div>
-        </div>
-        <hr class="rappel-divider">
         <div class="rappel-step">
           <div class="rappel-num">1</div>
           <div class="rappel-body">
-            <div class="rappel-tool">Installation <span class="tool-badge linux">Une seule fois</span></div>
+            <div class="rappel-tool">Installation <span class="tool-badge linux">Linux / WSL / Kali</span></div>
             <div class="code-block">pip install bloodhound</div>
           </div>
         </div>
@@ -991,118 +929,14 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
   -c All \
   --zip \
   --zipfilename Audit_Client.zip</div>
-            <div class="rappel-desc" style="margin-top:8px">Le ZIP est généré dans le dossier courant — uploader directement sur le portail.</div>
           </div>
         </div>
         <hr class="rappel-divider">
         <div class="rappel-step">
           <div class="rappel-num">3</div>
           <div class="rappel-body">
-            <div class="rappel-tool">Ports nécessaires depuis votre machine</div>
-            <div class="code-block"><span class="code-comment">LDAP   389/tcp   vers le DC</span>
-<span class="code-comment">LDAPS  636/tcp   vers le DC (si LDAP signé obligatoire)</span>
-<span class="code-comment">SMB    445/tcp   vers les membres du domaine (sessions)</span>
-<span class="code-comment">RPC    135/tcp   vers le DC</span></div>
-            <div class="rappel-info" style="margin-top:8px">Si le client a un VPN ou que vous êtes sur site avec un câble, ces ports sont généralement accessibles.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- VM Hyper-V -->
-      <div class="rappel-detail" id="rt-vm" style="display:none">
-        <div class="rappel-step">
-          <div class="rappel-num">1</div>
-          <div class="rappel-body">
-            <div class="rappel-tool">Préparation du template <span class="tool-badge windows">Une seule fois</span></div>
-            <div class="rappel-desc">VM Windows 10/11 sous Hyper-V — configurer puis prendre un snapshot propre.</div>
-            <div class="code-block"><span class="code-comment"># Désactiver Defender dans la VM</span>
-Set-MpPreference -DisableRealtimeMonitoring $true
-
-<span class="code-comment"># Créer le dossier outils et exclure</span>
-New-Item -ItemType Directory -Path "C:\AuditAD" -Force
-Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
-            <div class="rappel-desc" style="margin-top:8px">
-              Copier <strong>SharpHound.exe</strong> et <strong>PingCastle.exe</strong> dans <code style="font-family:monospace;color:var(--blue)">C:\AuditAD\</code>.
-              Prendre le snapshot <strong>avant</strong> toute jonction au domaine.
-            </div>
-          </div>
-        </div>
-        <hr class="rappel-divider">
-        <div class="rappel-step">
-          <div class="rappel-num">2</div>
-          <div class="rappel-body">
-            <div class="rappel-tool">Par mission</div>
-            <div class="code-block"><span class="code-comment"># Joindre la VM au domaine client</span>
-Add-Computer -DomainName "domaine.client.local" -Restart
-
-<span class="code-comment"># Après redémarrage</span>
-.\PingCastle.exe --healthcheck
-.\SharpHound.exe -c All --zipfilename Audit_Client.zip</div>
-            <div class="rappel-desc" style="margin-top:8px">Récupérer les fichiers via partage réseau, SCP ou clé USB.</div>
-          </div>
-        </div>
-        <hr class="rappel-divider">
-        <div class="rappel-step">
-          <div class="rappel-num">3</div>
-          <div class="rappel-body">
-            <div class="rappel-tool">Réinitialisation</div>
-            <div class="rappel-desc">Revenir au snapshot Hyper-V propre — la VM est immédiatement prête pour le client suivant, sans trace du domaine précédent.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Gestion AV -->
-      <div class="rappel-detail" id="rt-av" style="display:none">
-        <div class="rappel-step">
-          <div class="rappel-num">1</div>
-          <div class="rappel-body">
-            <div class="rappel-tool">Windows Defender <span class="tool-badge windows">PowerShell admin</span></div>
-            <div class="code-block"><span class="code-comment"># Exclusion de dossier (persistante)</span>
-Add-MpPreference -ExclusionPath "C:\AuditAD"
-
-<span class="code-comment"># Désactivation temporaire (remettre après)</span>
-Set-MpPreference -DisableRealtimeMonitoring $true
-Set-MpPreference -DisableRealtimeMonitoring $false</div>
-          </div>
-        </div>
-        <hr class="rappel-divider">
-        <div class="rappel-step">
-          <div class="rappel-num">2</div>
-          <div class="rappel-body">
-            <div class="rappel-tool">ESET PROTECT (console centrale)</div>
-            <div class="code-block"><span class="code-comment">Console ESET PROTECT</span>
-<span class="code-comment">→ Ordinateurs > [machine cible] > Gérer les politiques</span>
-<span class="code-comment">→ Antivirus > Exclusions > Ajouter chemin</span>
-<span class="code-comment">   Chemin : C:\AuditAD\*</span>
-<span class="code-comment">→ Appliquer — supprimer après la mission</span></div>
-            <div class="rappel-desc" style="margin-top:8px">
-              Détections SharpHound : <code style="font-family:monospace;color:var(--red)">MSIL/Riskware.SharpHound.H</code>,
-              <code style="font-family:monospace;color:var(--red)">MSIL/Riskware.SharpHound_AGen.AP</code>
-            </div>
-          </div>
-        </div>
-        <hr class="rappel-divider">
-        <div class="rappel-step">
-          <div class="rappel-num">3</div>
-          <div class="rappel-body">
-            <div class="rappel-tool">Bitdefender GravityZone (console centrale)</div>
-            <div class="code-block"><span class="code-comment">GravityZone Console</span>
-<span class="code-comment">→ Politiques > [politique machine cible]</span>
-<span class="code-comment">→ Antimalware > Paramètres > Exclusions</span>
-<span class="code-comment">→ Ajouter dossier : C:\AuditAD</span>
-<span class="code-comment">→ Appliquer à la machine cible uniquement</span>
-<span class="code-comment">→ Supprimer l'exclusion après la mission</span></div>
-          </div>
-        </div>
-        <hr class="rappel-divider">
-        <div class="rappel-step">
-          <div class="rappel-num" style="background:var(--green)">!</div>
-          <div class="rappel-body">
-            <div class="rappel-tool">Alternative sans exclusion AV</div>
-            <div class="rappel-desc">
-              Si le client refuse ou si vous n'avez pas accès à la console AV :
-              utiliser <strong>bloodhound-python depuis Linux</strong> — aucun contact avec l'AV Windows du client.
-            </div>
+            <div class="rappel-tool">Uploader le ZIP sur le portail</div>
+            <div class="rappel-desc">Le ZIP est généré dans le dossier courant.</div>
           </div>
         </div>
       </div>
