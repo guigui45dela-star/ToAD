@@ -1,0 +1,40 @@
+name: Greetings
+
+on:
+  pull_request:
+    types: [opened]
+  issues:
+    types: [opened]
+
+jobs:
+  greeting:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Greet on PRs
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '👋 Thanks for opening a pull request!\n\nPlease make sure you have:\n- [ ] Read the [Contributing Guidelines](https://github.com/guigui45dela-star/ToAD/blob/main/CONTRIBUTING.md)\n- [ ] Followed the [Code of Conduct](https://github.com/guigui45dela-star/ToAD/blob/main/CODE_OF_CONDUCT.md)\n- [ ] Updated documentation if needed\n- [ ] Added tests if applicable\n\nA maintainer will review your PR soon! 🐸'
+            })
+
+      - name: Greet on Issues
+        if: github.event_name == 'issues'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '👋 Thanks for opening an issue!\n\nA maintainer will review your issue and get back to you soon. In the meantime, please make sure you have provided:\n- Clear description of the problem/feature\n- Steps to reproduce (if bug)\n- Expected vs actual behavior\n- Environment details\n\nThank you for helping improve ToAD! 🐸'
+            })
