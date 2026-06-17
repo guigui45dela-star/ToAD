@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/assets/logo.png" alt="ToAD Logo" width="200"/>
+
 # 🐸 ToAD - Active Directory Audit Platform
 
 **Centralized platform for managing and generating Active Directory audits**

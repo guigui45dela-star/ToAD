@@ -27,6 +27,7 @@ RUN pip install --no-cache-dir \
 COPY web/app.py /app/app.py
 COPY web/index.html /src/index.html
 COPY web/setup.html /src/setup.html
+COPY web/assets/ /src/assets/
 
 # Create necessary directories
 RUN mkdir -p /data/config /src
