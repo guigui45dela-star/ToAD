@@ -1,10 +1,40 @@
-# ToAD - Plateforme d'Audit Active Directory
+<div align="center">
+
+# 🐸 ToAD - Plateforme d'Audit Active Directory
 
 **Plateforme centralisée pour la gestion et la génération d'audits Active Directory**
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Docker](https://img.shields.io/badge/docker-ready-blue.svg)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/guigui45dela-star/ToAD/releases)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green.svg)](https://fastapi.tiangolo.com/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+
+**[Français](README.md)** | **[English](README.en.md)**
+
+[Installation](#-installation) • [Documentation](#-documentation) • [Contribuer](#-contribuer) • [Support](#-support)
+
+</div>
+
+---
+
+## 📖 Table des Matières
+
+- [Fonctionnalités](#-fonctionnalités)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Utilisation](#-utilisation)
+- [Architecture](#-architecture)
+- [Sécurité](#-sécurité)
+- [Documentation](#-documentation)
+- [Contribuer](#-contribuer)
+- [Roadmap](#-roadmap)
+- [Support](#-support)
+- [Licence](#-licence)
+- [Remerciements](#-remerciements)
+
+---
 
 ## 🎯 Fonctionnalités
 
@@ -15,7 +45,7 @@
 - **Rappels intégrés** : Guides procéduraux pour PingCastle, SharpHound, BloodHound
 - **Workflow optimisé** : Automatisation complète du processus d'audit
 
-## 🚀 Quick Start
+## 🚀 Installation
 
 ### Prérequis
 
@@ -23,12 +53,12 @@
 - 4 Go de RAM minimum (8 Go recommandé)
 - Ports disponibles : 9100, 8080, 7474, 7687
 
-### Installation
+### Installation Rapide
 
 ```bash
 # 1. Cloner le repository
-git clone https://github.com/your-username/toad.git
-cd toad
+git clone https://github.com/guigui45dela-star/ToAD.git
+cd ToAD
 
 # 2. Lancer ToAD
 docker compose up -d
@@ -38,6 +68,10 @@ open http://localhost:9100
 ```
 
 Au premier démarrage, vous serez automatiquement redirigé vers la page de configuration `/setup`.
+
+### Installation Détaillée
+
+Pour une installation complète avec configuration manuelle, consultez le [Guide d'Installation](docs/installation.md).
 
 ### Configuration via l'interface web
 
@@ -234,37 +268,115 @@ uvicorn app:app --reload --host 0.0.0.0 --port 8000
 pytest tests/
 ```
 
-## 🤝 Contribution
+## 🤝 Contribuer
 
-Les contributions sont les bienvenues ! Voir [CONTRIBUTING.md](CONTRIBUTING.md).
+Les contributions sont les bienvenues ! Consultez [CONTRIBUTING.md](CONTRIBUTING.md) pour commencer.
 
-### Roadmap
+### Comment contribuer
 
+1. **Fork** le projet
+2. Créez une branche (`git checkout -b feature/AmazingFeature`)
+3. **Commit** vos changements (`git commit -m 'Add: AmazingFeature'`)
+4. **Push** vers la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrez une **Pull Request**
+
+### Types de contributions
+
+- 🐛 **Bug fixes** - Corriger des bugs existants
+- ✨ **Nouvelles fonctionnalités** - Ajouter des fonctionnalités
+- 📚 **Documentation** - Améliorer la documentation
+- 🎨 **UI/UX** - Améliorer l'interface utilisateur
+- 🔒 **Sécurité** - Signaler ou corriger des vulnérabilités
+- 🧪 **Tests** - Ajouter des tests automatisés
+
+Merci à tous les contributeurs ! 🙏
+
+## 🗺️ Roadmap
+
+### Version 1.1 (Q3 2026)
 - [ ] Authentification intégrée (JWT/OAuth)
 - [ ] Support PDF pour rapports
 - [ ] Tags et catégories
+
+### Version 1.2 (Q4 2026)
 - [ ] Comparaison inter-audits
 - [ ] API REST documentée (OpenAPI)
+- [ ] Notifications (Slack, Teams)
+
+### Version 2.0 (2027)
 - [ ] Plugin system pour nouveaux outils
 - [ ] Support Azure AD / Entra ID
 - [ ] Multi-utilisateurs avec rôles
+- [ ] Dashboard comparatif multi-clients
+
+Consultez les [Issues GitHub](https://github.com/guigui45dela-star/ToAD/issues) pour voir toutes les fonctionnalités planifiées.
 
 ## 📄 Licence
 
-MIT License - Voir [LICENSE](LICENSE)
+Distribué sous licence MIT. Voir [LICENSE](LICENSE) pour plus d'informations.
+
+```
+MIT License
+
+Copyright (c) 2026 ToAD Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction...
+```
 
 ## 🙏 Remerciements
 
-- [BloodHound CE](https://github.com/SpecterOps/BloodHound) - Specter Ops
-- [AD-Miner](https://github.com/Mazars-Tech/AD_Miner) - Mazars
-- [PingCastle](https://www.pingcastle.com/) - PingCastle
-- [SharpHound](https://github.com/BloodHoundAD/SharpHound) - BloodHoundAD
+ToAD repose sur des outils open-source exceptionnels :
+
+- **[BloodHound CE](https://github.com/SpecterOps/BloodHound)** - Specter Ops
+  - Analyse des chemins d'attaque Active Directory
+  
+- **[AD-Miner](https://github.com/Mazars-Tech/AD_Miner)** - Mazars
+  - Génération de rapports d'audit AD
+  
+- **[PingCastle](https://www.pingcastle.com/)** - PingCastle
+  - Évaluation de la sécurité Active Directory
+  
+- **[SharpHound](https://github.com/BloodHoundAD/SharpHound)** - BloodHoundAD
+  - Collecte de données AD pour BloodHound
+
+Merci à toutes les communautés qui maintiennent ces outils !
 
 ## 📞 Support
 
-- GitHub Issues : [Signaler un bug](https://github.com/votre-username/toad/issues)
-- Discussions : [Poser une question](https://github.com/votre-username/toad/discussions)
+### Obtenir de l'aide
+
+- 📖 **Documentation** : [docs/](docs/)
+- 🐛 **Signaler un bug** : [GitHub Issues](https://github.com/guigui45dela-star/ToAD/issues)
+- 💬 **Discussions** : [GitHub Discussions](https://github.com/guigui45dela-star/ToAD/discussions)
+- 🔒 **Sécurité** : [SECURITY.md](SECURITY.md)
+
+### Ressources utiles
+
+- [Guide d'installation](docs/installation.md)
+- [Guide de sécurité](docs/security.md)
+- [Architecture technique](docs/architecture.md)
+- [Guide de migration](docs/migration.md)
+
+## ⭐ Soutenir le projet
+
+Si ToAD vous est utile, n'hésitez pas à :
+
+- ⭐ **Starrer** le repository
+- 🍴 **Forker** et contribuer
+- 📢 **Partager** avec votre réseau
+- 🐛 **Signaler** les bugs
+- 💡 **Suggérer** des améliorations
 
 ---
 
-**ToAD** - *Centralisez vos audits Active Directory*
+<div align="center">
+
+**Fait avec ❤️ par la communauté cybersécurité**
+
+[🐸 ToAD](https://github.com/guigui45dela-star/ToAD) - *Centralisez vos audits Active Directory*
+
+[Installation](#-installation) • [Documentation](#-documentation) • [Contribuer](#-contribuer) • [Support](#-support)
+
+</div>

@@ -1,10 +1,40 @@
-# ToAD - Active Directory Audit Platform
+<div align="center">
+
+# 🐸 ToAD - Active Directory Audit Platform
 
 **Centralized platform for managing and generating Active Directory audits**
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Docker](https://img.shields.io/badge/docker-ready-blue.svg)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/guigui45dela-star/ToAD/releases)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green.svg)](https://fastapi.tiangolo.com/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+
+**[Français](README.md)** | **[English](README.en.md)**
+
+[Installation](#-installation) • [Documentation](#-documentation) • [Contributing](#-contributing) • [Support](#-support)
+
+</div>
+
+---
+
+## 📖 Table of Contents
+
+- [Features](#-features)
+- [Installation](#-installation)
+- [Configuration](#-configuration)
+- [Usage](#-usage)
+- [Architecture](#-architecture)
+- [Security](#-security)
+- [Documentation](#-documentation)
+- [Contributing](#-contributing)
+- [Roadmap](#-roadmap)
+- [Support](#-support)
+- [License](#-license)
+- [Acknowledgments](#-acknowledgments)
+
+---
 
 ## 🎯 Features
 
