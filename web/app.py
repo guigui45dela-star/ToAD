@@ -1,17 +1,17 @@
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
-from fastapi.responses import FileResponse, Response, RedirectResponse, JSONResponse
-from fastapi.middleware.cors import CORSMiddleware
-from pathlib import Path
-from datetime import datetime
-import subprocess
-import shutil
-import re
 import json
-import time
 import os
-import requests
-import uuid
+import re
+import shutil
+import subprocess
 import threading
+import time
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+import requests
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, Response
 
 ROOT = Path("/data")
 STATIC_DIR = Path("/src")
@@ -38,8 +38,10 @@ MAX_SHARPHOUND_SIZE = 500 * 1024 * 1024  # 500 MB
 
 app = FastAPI()
 
+
 def is_setup_complete() -> bool:
     return SETUP_FLAG.exists()
+
 
 def get_config() -> dict:
     config_file = ROOT / "config" / "toad.json"
@@ -50,10 +52,14 @@ def get_config() -> dict:
             pass
     return {}
 
+
 def save_config(config: dict):
     config_file = ROOT / "config" / "toad.json"
     config_file.parent.mkdir(parents=True, exist_ok=True)
-    config_file.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
+    config_file.write_text(
+        json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
 
 # ─── Job system ───────────────────────────────────────────────────────────────
 
@@ -98,16 +104,21 @@ def job_error(job_id: str, message: str):
 
 # ─── BloodHound status tracking ──────────────────────────────────────────────
 
+
 def write_bloodhound_status(slug: str, name: str, filename: str, upload_id: str = ""):
     try:
         BH_STATUS_FILE.write_text(
-            json.dumps({
-                "slug": slug,
-                "name": name,
-                "file": filename,
-                "imported_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                "upload_id": upload_id,
-            }, ensure_ascii=False, indent=2),
+            json.dumps(
+                {
+                    "slug": slug,
+                    "name": name,
+                    "file": filename,
+                    "imported_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                    "upload_id": upload_id,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
             encoding="utf-8",
         )
     except Exception:
@@ -120,19 +131,29 @@ def read_bloodhound_status() -> dict:
             return json.loads(BH_STATUS_FILE.read_text(encoding="utf-8"))
     except Exception:
         pass
-    return {"slug": None, "name": None, "file": None, "imported_at": None, "upload_id": ""}
+    return {
+        "slug": None,
+        "name": None,
+        "file": None,
+        "imported_at": None,
+        "upload_id": "",
+    }
 
 
 def clear_bloodhound_status():
     try:
         BH_STATUS_FILE.write_text(
-            json.dumps({
-                "slug": None,
-                "name": None,
-                "file": None,
-                "imported_at": None,
-                "reset_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
-            }, ensure_ascii=False, indent=2),
+            json.dumps(
+                {
+                    "slug": None,
+                    "name": None,
+                    "file": None,
+                    "imported_at": None,
+                    "reset_at": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
             encoding="utf-8",
         )
     except Exception:
@@ -140,6 +161,7 @@ def clear_bloodhound_status():
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def sanitize_slug(value: str) -> str:
     value = value.strip().lower()
@@ -216,7 +238,9 @@ def write_client_metadata(client_path: Path, name: str, slug: str, extra: dict =
     metadata["updated_at"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     if extra:
         metadata.update(extra)
-    metadata_file.write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    metadata_file.write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def read_client_metadata(client_path: Path) -> dict:
@@ -254,45 +278,76 @@ def count_sharphound_zips(client_path: Path) -> int:
 
 # ─── Docker / BloodHound ──────────────────────────────────────────────────────
 
+
 def run_bloodhound_compose(args):
     command = [
-        "docker", "run", "--rm",
-        "-v", "/var/run/docker.sock:/var/run/docker.sock",
-        "-v", f"{BLOODHOUND_HOST_DIR}:{BLOODHOUND_HOST_DIR}",
-        "-w", BLOODHOUND_HOST_DIR,
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        "/var/run/docker.sock:/var/run/docker.sock",
+        "-v",
+        f"{BLOODHOUND_HOST_DIR}:{BLOODHOUND_HOST_DIR}",
+        "-w",
+        BLOODHOUND_HOST_DIR,
         "docker:27-cli",
-        "docker", "compose",
-        "-p", BLOODHOUND_PROJECT_NAME,
+        "docker",
+        "compose",
+        "-p",
+        BLOODHOUND_PROJECT_NAME,
     ] + args
     return subprocess.run(command, capture_output=True, text=True, timeout=300)
 
 
 def bloodhound_login() -> str:
-    payload = {"login_method": "secret", "username": BLOODHOUND_USERNAME, "secret": BLOODHOUND_PASSWORD}
+    payload = {
+        "login_method": "secret",
+        "username": BLOODHOUND_USERNAME,
+        "secret": BLOODHOUND_PASSWORD,
+    }
     try:
-        response = requests.post(f"{BLOODHOUND_URL}/api/v2/login", json=payload, timeout=60)
+        response = requests.post(
+            f"{BLOODHOUND_URL}/api/v2/login", json=payload, timeout=60
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Impossible de contacter BloodHound : {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Impossible de contacter BloodHound : {e}"
+        )
     if response.status_code >= 400:
-        raise HTTPException(status_code=500, detail=f"Authentification BloodHound refusée : {response.text}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Authentification BloodHound refusée : {response.text}",
+        )
     data = response.json()
     try:
         return data["data"]["session_token"]
     except Exception:
-        raise HTTPException(status_code=500, detail=f"Réponse login BloodHound inattendue : {data}")
+        raise HTTPException(
+            status_code=500, detail=f"Réponse login BloodHound inattendue : {data}"
+        )
 
 
 def upload_sharphound_to_bloodhound(zip_path: Path) -> dict:
     token = bloodhound_login()
-    headers = {"Accept": "application/json, text/plain, */*", "Authorization": f"Bearer {token}"}
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Authorization": f"Bearer {token}",
+    }
 
-    start = requests.post(f"{BLOODHOUND_URL}/api/v2/file-upload/start", headers=headers, timeout=60)
+    start = requests.post(
+        f"{BLOODHOUND_URL}/api/v2/file-upload/start", headers=headers, timeout=60
+    )
     if start.status_code >= 400:
-        raise HTTPException(status_code=500, detail=f"Impossible de créer le job BloodHound : {start.text}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Impossible de créer le job BloodHound : {start.text}",
+        )
     try:
         upload_id = start.json()["data"]["id"]
     except Exception:
-        raise HTTPException(status_code=500, detail=f"Réponse start upload inattendue : {start.text}")
+        raise HTTPException(
+            status_code=500, detail=f"Réponse start upload inattendue : {start.text}"
+        )
 
     upload_headers = {
         "accept": "*/*",
@@ -307,11 +362,19 @@ def upload_sharphound_to_bloodhound(zip_path: Path) -> dict:
             timeout=600,
         )
     if upload.status_code >= 400:
-        raise HTTPException(status_code=500, detail=f"Upload ZIP échoué : {upload.text}")
+        raise HTTPException(
+            status_code=500, detail=f"Upload ZIP échoué : {upload.text}"
+        )
 
-    end = requests.post(f"{BLOODHOUND_URL}/api/v2/file-upload/{upload_id}/end", headers=headers, timeout=120)
+    end = requests.post(
+        f"{BLOODHOUND_URL}/api/v2/file-upload/{upload_id}/end",
+        headers=headers,
+        timeout=120,
+    )
     if end.status_code >= 400:
-        raise HTTPException(status_code=500, detail=f"Fin du job BloodHound échouée : {end.text}")
+        raise HTTPException(
+            status_code=500, detail=f"Fin du job BloodHound échouée : {end.text}"
+        )
 
     return {"upload_id": upload_id, "message": "ZIP SharpHound envoyé à BloodHound."}
 
@@ -329,7 +392,14 @@ def wait_for_bloodhound_ingestion(job_id: str = None, max_wait: int = 600) -> bo
 
     headers = {"Authorization": f"Bearer {token}"}
     start = time.time()
-    ACTIVE_STATES = {"running", "analyzing", "ingesting", "queued", "processing", "scheduled"}
+    ACTIVE_STATES = {
+        "running",
+        "analyzing",
+        "ingesting",
+        "queued",
+        "processing",
+        "scheduled",
+    }
 
     time.sleep(5)  # délai minimal avant le premier poll
 
@@ -338,11 +408,16 @@ def wait_for_bloodhound_ingestion(job_id: str = None, max_wait: int = 600) -> bo
 
         if elapsed >= max_wait:
             if job_id:
-                job_step(job_id, f"Timeout attente ingestion BloodHound ({max_wait}s) — génération lancée quand même.")
+                job_step(
+                    job_id,
+                    f"Timeout attente ingestion BloodHound ({max_wait}s) — génération lancée quand même.",
+                )
             return False
 
         try:
-            r = requests.get(f"{BLOODHOUND_URL}/api/v2/jobs", headers=headers, timeout=15)
+            r = requests.get(
+                f"{BLOODHOUND_URL}/api/v2/jobs", headers=headers, timeout=15
+            )
 
             if r.ok:
                 raw = r.json().get("data", [])
@@ -354,13 +429,17 @@ def wait_for_bloodhound_ingestion(job_id: str = None, max_wait: int = 600) -> bo
                     jobs = []
 
                 active = [
-                    j for j in jobs
+                    j
+                    for j in jobs
                     if str(j.get("status", "")).lower() in ACTIVE_STATES
                     or j.get("status") in (1, 2, 3)
                 ]
 
                 if job_id:
-                    job_step(job_id, f"Attente ingestion BloodHound ({elapsed}s, {len(active)} job(s) actif(s))...")
+                    job_step(
+                        job_id,
+                        f"Attente ingestion BloodHound ({elapsed}s, {len(active)} job(s) actif(s))...",
+                    )
 
                 if not active:
                     return True
@@ -391,22 +470,35 @@ def generate_ad_miner_for_client(clean_slug: str) -> dict:
         shutil.rmtree(render_dir)
 
     command = [
-        "python", "-m", "ad_miner",
-        "-cf", clean_slug,
-        "-b", NEO4J_URL,
-        "-u", NEO4J_USER,
-        "-p", NEO4J_PASSWORD,
+        "python",
+        "-m",
+        "ad_miner",
+        "-cf",
+        clean_slug,
+        "-b",
+        NEO4J_URL,
+        "-u",
+        NEO4J_USER,
+        "-p",
+        NEO4J_PASSWORD,
     ]
-    result = subprocess.run(command, cwd=str(AD_MINER_DIR), capture_output=True, text=True, timeout=900)
+    result = subprocess.run(
+        command, cwd=str(AD_MINER_DIR), capture_output=True, text=True, timeout=900
+    )
 
     # Rapport présent → succès même si returncode != 0 (warnings Neo4j traités en erreur par AD-Miner)
     report_generated = render_dir.exists() and any(render_dir.rglob("*.html"))
 
     if result.returncode != 0 and not report_generated:
-        raise HTTPException(status_code=500, detail=f"Erreur AD-Miner : {result.stderr or result.stdout}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur AD-Miner : {result.stderr or result.stdout}",
+        )
 
     if not render_dir.exists():
-        raise HTTPException(status_code=500, detail="AD-Miner terminé mais rapport introuvable.")
+        raise HTTPException(
+            status_code=500, detail="AD-Miner terminé mais rapport introuvable."
+        )
 
     target_dir = client_path / "ad-miner"
     # Copy to a temp dir first, then atomically swap — évite les ENOTEMPTY
@@ -423,12 +515,19 @@ def generate_ad_miner_for_client(clean_slug: str) -> dict:
     if result.returncode != 0:
         warning = " (avec avertissements Neo4j)"
 
-    return {"status": "ok", "message": f"Rapport AD-Miner généré{warning}.", "url": f"/{clean_slug}/ad-miner/"}
+    return {
+        "status": "ok",
+        "message": f"Rapport AD-Miner généré{warning}.",
+        "url": f"/{clean_slug}/ad-miner/",
+    }
 
 
 # ─── Background tasks ─────────────────────────────────────────────────────────
 
-def _full_audit_background(job_id: str, clean_name: str, clean_slug: str, pc_bytes: bytes, sh_bytes: bytes):
+
+def _full_audit_background(
+    job_id: str, clean_name: str, clean_slug: str, pc_bytes: bytes, sh_bytes: bytes
+):
     try:
         client_path = ROOT / clean_slug
 
@@ -450,26 +549,41 @@ def _full_audit_background(job_id: str, clean_name: str, clean_slug: str, pc_byt
 
         job_step(job_id, "Envoi du ZIP vers BloodHound...")
         upload_result = upload_sharphound_to_bloodhound(sh_src)
-        write_bloodhound_status(clean_slug, clean_name, sh_src.name, upload_result.get("upload_id", ""))
-        log_event(clean_slug, f"bloodhound_ingest_started upload_id={upload_result.get('upload_id')}")
+        write_bloodhound_status(
+            clean_slug, clean_name, sh_src.name, upload_result.get("upload_id", "")
+        )
+        log_event(
+            clean_slug,
+            f"bloodhound_ingest_started upload_id={upload_result.get('upload_id')}",
+        )
 
         job_step(job_id, "Attente de la fin de l'ingestion BloodHound...")
         wait_for_bloodhound_ingestion(job_id=job_id, max_wait=600)
         log_event(clean_slug, "bloodhound_ingest_finished")
 
-        job_step(job_id, "Génération AD-Miner en cours (peut prendre plusieurs minutes)...")
-        ad_result = generate_ad_miner_for_client(clean_slug)
+        job_step(
+            job_id, "Génération AD-Miner en cours (peut prendre plusieurs minutes)..."
+        )
+        generate_ad_miner_for_client(clean_slug)
         log_event(clean_slug, "ad_miner_generated")
 
         # Mise à jour de la date du dernier audit complet
-        write_client_metadata(client_path, clean_name, clean_slug,
-                               extra={"last_audit_at": datetime.now().strftime("%d/%m/%Y %H:%M")})
+        write_client_metadata(
+            client_path,
+            clean_name,
+            clean_slug,
+            extra={"last_audit_at": datetime.now().strftime("%d/%m/%Y %H:%M")},
+        )
 
-        job_done(job_id, f"Audit complet terminé pour {clean_name}.", {
-            "slug": clean_slug,
-            "pingcastle_url": f"/{clean_slug}/pingcastle/",
-            "ad_miner_url": f"/{clean_slug}/ad-miner/",
-        })
+        job_done(
+            job_id,
+            f"Audit complet terminé pour {clean_name}.",
+            {
+                "slug": clean_slug,
+                "pingcastle_url": f"/{clean_slug}/pingcastle/",
+                "ad_miner_url": f"/{clean_slug}/ad-miner/",
+            },
+        )
 
     except HTTPException as e:
         job_error(job_id, e.detail)
@@ -498,6 +612,7 @@ def _ad_miner_background(job_id: str, clean_slug: str):
 
 # ─── API routes ───────────────────────────────────────────────────────────────
 
+
 @app.get("/api/audits")
 def audits():
     result = []
@@ -513,28 +628,35 @@ def audits():
         ad_miner_index = client_path / "ad-miner" / "index.html"
         pingcastle_index = client_path / "pingcastle" / "index.html"
         metadata = read_client_metadata(client_path)
-        result.append({
-            "slug": slug,
-            "name": metadata.get("name") or slug.replace("-", " ").replace("_", " ").title(),
-            "created_at": metadata.get("created_at"),
-            "last_audit_at": metadata.get("last_audit_at"),
-            "ad_miner": {
-                "available": ad_miner_index.exists(),
-                "url": f"/{slug}/ad-miner/",
-                "date": latest_file_date(client_path / "ad-miner"),
-            },
-            "pingcastle": {
-                "available": pingcastle_index.exists(),
-                "url": f"/{slug}/pingcastle/",
-                "date": latest_file_date(client_path / "pingcastle"),
-            },
-            "sources": {
-                "sharphound_date": latest_file_date(client_path / "sources" / "sharphound"),
-                "sharphound_count": count_sharphound_zips(client_path),
-                "pingcastle_date": latest_file_date(client_path / "sources" / "pingcastle"),
-            },
-            "bloodhound_active": bh_active_slug == slug,
-        })
+        result.append(
+            {
+                "slug": slug,
+                "name": metadata.get("name")
+                or slug.replace("-", " ").replace("_", " ").title(),
+                "created_at": metadata.get("created_at"),
+                "last_audit_at": metadata.get("last_audit_at"),
+                "ad_miner": {
+                    "available": ad_miner_index.exists(),
+                    "url": f"/{slug}/ad-miner/",
+                    "date": latest_file_date(client_path / "ad-miner"),
+                },
+                "pingcastle": {
+                    "available": pingcastle_index.exists(),
+                    "url": f"/{slug}/pingcastle/",
+                    "date": latest_file_date(client_path / "pingcastle"),
+                },
+                "sources": {
+                    "sharphound_date": latest_file_date(
+                        client_path / "sources" / "sharphound"
+                    ),
+                    "sharphound_count": count_sharphound_zips(client_path),
+                    "pingcastle_date": latest_file_date(
+                        client_path / "sources" / "pingcastle"
+                    ),
+                },
+                "bloodhound_active": bh_active_slug == slug,
+            }
+        )
     return result
 
 
@@ -563,7 +685,11 @@ def create_client(name: str = Form(...), slug: str = Form(...)):
     ensure_client_dirs(client_path)
     write_client_metadata(client_path, clean_name, clean_slug)
     log_event(clean_slug, f"client_created name={clean_name}")
-    return {"status": "ok", "message": f"Client « {clean_name} » créé.", "slug": clean_slug}
+    return {
+        "status": "ok",
+        "message": f"Client « {clean_name} » créé.",
+        "slug": clean_slug,
+    }
 
 
 @app.delete("/api/clients/{slug}")
@@ -589,18 +715,26 @@ async def upload_pingcastle(slug: str, report: UploadFile = File(...)):
         raise HTTPException(status_code=404, detail="Client introuvable.")
     filename = report.filename or ""
     if not filename.lower().endswith((".html", ".htm")):
-        raise HTTPException(status_code=400, detail="Le rapport PingCastle doit être un fichier HTML.")
+        raise HTTPException(
+            status_code=400, detail="Le rapport PingCastle doit être un fichier HTML."
+        )
     ensure_client_dirs(client_path)
     ts = now_slug()
     source_file = client_path / "sources" / "pingcastle" / f"pingcastle_{ts}.html"
     target_file = client_path / "pingcastle" / "index.html"
     content = await report.read()
     if len(content) > MAX_PINGCASTLE_SIZE:
-        raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 50 Mo).")
+        raise HTTPException(
+            status_code=413, detail="Fichier trop volumineux (max 50 Mo)."
+        )
     source_file.write_bytes(content)
     target_file.write_bytes(content)
     log_event(clean_slug, f"pingcastle_uploaded file={source_file.name}")
-    return {"status": "ok", "message": "Rapport PingCastle importé.", "url": f"/{clean_slug}/pingcastle/"}
+    return {
+        "status": "ok",
+        "message": "Rapport PingCastle importé.",
+        "url": f"/{clean_slug}/pingcastle/",
+    }
 
 
 @app.post("/api/clients/{slug}/sharphound")
@@ -611,20 +745,33 @@ async def upload_sharphound_only(slug: str, zip_file: UploadFile = File(...)):
         raise HTTPException(status_code=404, detail="Client introuvable.")
     filename = zip_file.filename or ""
     if not filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Le fichier SharpHound doit être une archive ZIP.")
+        raise HTTPException(
+            status_code=400, detail="Le fichier SharpHound doit être une archive ZIP."
+        )
     ensure_client_dirs(client_path)
     ts = now_slug()
     source_file = client_path / "sources" / "sharphound" / f"sharphound_{ts}.zip"
     content = await zip_file.read()
     if len(content) > MAX_SHARPHOUND_SIZE:
-        raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 500 Mo).")
+        raise HTTPException(
+            status_code=413, detail="Fichier trop volumineux (max 500 Mo)."
+        )
     source_file.write_bytes(content)
     log_event(clean_slug, f"sharphound_uploaded file={source_file.name}")
     upload_result = upload_sharphound_to_bloodhound(source_file)
     name = client_display_name(client_path, clean_slug)
-    write_bloodhound_status(clean_slug, name, source_file.name, upload_result.get("upload_id", ""))
-    log_event(clean_slug, f"bloodhound_ingest_started upload_id={upload_result.get('upload_id')}")
-    return {"status": "ok", "message": "ZIP SharpHound importé dans BloodHound.", "bloodhound": upload_result}
+    write_bloodhound_status(
+        clean_slug, name, source_file.name, upload_result.get("upload_id", "")
+    )
+    log_event(
+        clean_slug,
+        f"bloodhound_ingest_started upload_id={upload_result.get('upload_id')}",
+    )
+    return {
+        "status": "ok",
+        "message": "ZIP SharpHound importé dans BloodHound.",
+        "bloodhound": upload_result,
+    }
 
 
 @app.get("/api/clients/{slug}/sharphound/files")
@@ -645,7 +792,9 @@ def list_sharphound_files(slug: str):
         {
             "filename": f.name,
             "size": f.stat().st_size,
-            "date": datetime.fromtimestamp(f.stat().st_mtime).strftime("%d/%m/%Y %H:%M"),
+            "date": datetime.fromtimestamp(f.stat().st_mtime).strftime(
+                "%d/%m/%Y %H:%M"
+            ),
         }
         for f in files
     ]
@@ -654,12 +803,19 @@ def list_sharphound_files(slug: str):
 @app.get("/api/clients/{slug}/sharphound/download/{filename}")
 def download_sharphound(slug: str, filename: str):
     clean_slug = sanitize_slug(slug)
-    if not filename.lower().endswith(".zip") or "/" in filename or "\\" in filename or ".." in filename:
+    if (
+        not filename.lower().endswith(".zip")
+        or "/" in filename
+        or "\\" in filename
+        or ".." in filename
+    ):
         raise HTTPException(status_code=400, detail="Nom de fichier invalide.")
     file_path = ROOT / clean_slug / "sources" / "sharphound" / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Fichier introuvable.")
-    return FileResponse(path=str(file_path), filename=filename, media_type="application/zip")
+    return FileResponse(
+        path=str(file_path), filename=filename, media_type="application/zip"
+    )
 
 
 @app.post("/api/clients/{slug}/ad-miner/generate")
@@ -669,7 +825,9 @@ def generate_ad_miner(slug: str):
     if not client_path.exists():
         raise HTTPException(status_code=404, detail="Client introuvable.")
     job_id = create_job(f"AD-Miner — {clean_slug}")
-    t = threading.Thread(target=_ad_miner_background, args=(job_id, clean_slug), daemon=True)
+    t = threading.Thread(
+        target=_ad_miner_background, args=(job_id, clean_slug), daemon=True
+    )
     t.start()
     return {"job_id": job_id, "status": "running"}
 
@@ -688,17 +846,25 @@ async def create_full_audit(
     pc_name = pingcastle_report.filename or ""
     sh_name = sharphound_zip.filename or ""
     if not pc_name.lower().endswith((".html", ".htm")):
-        raise HTTPException(status_code=400, detail="Le rapport PingCastle doit être un fichier HTML.")
+        raise HTTPException(
+            status_code=400, detail="Le rapport PingCastle doit être un fichier HTML."
+        )
     if not sh_name.lower().endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Le fichier SharpHound doit être une archive ZIP.")
+        raise HTTPException(
+            status_code=400, detail="Le fichier SharpHound doit être une archive ZIP."
+        )
 
     pc_bytes = await pingcastle_report.read()
     sh_bytes = await sharphound_zip.read()
 
     if len(pc_bytes) > MAX_PINGCASTLE_SIZE:
-        raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 50 Mo).")
+        raise HTTPException(
+            status_code=413, detail="Fichier trop volumineux (max 50 Mo)."
+        )
     if len(sh_bytes) > MAX_SHARPHOUND_SIZE:
-        raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 500 Mo).")
+        raise HTTPException(
+            status_code=413, detail="Fichier trop volumineux (max 500 Mo)."
+        )
 
     job_id = create_job(f"Audit complet — {clean_name}")
     t = threading.Thread(
@@ -707,7 +873,11 @@ async def create_full_audit(
         daemon=True,
     )
     t.start()
-    return {"job_id": job_id, "status": "running", "message": f"Audit lancé pour {clean_name}."}
+    return {
+        "job_id": job_id,
+        "status": "running",
+        "message": f"Audit lancé pour {clean_name}.",
+    }
 
 
 @app.post("/api/bloodhound/reset")
@@ -716,15 +886,21 @@ def reset_bloodhound():
         log_event("_system", "bloodhound_reset_started")
         down = run_bloodhound_compose(["down", "-v"])
         if down.returncode != 0:
-            raise HTTPException(status_code=500, detail=f"Erreur docker compose down -v : {down.stderr}")
+            raise HTTPException(
+                status_code=500, detail=f"Erreur docker compose down -v : {down.stderr}"
+            )
         up = run_bloodhound_compose(["up", "-d"])
         if up.returncode != 0:
-            raise HTTPException(status_code=500, detail=f"Erreur docker compose up -d : {up.stderr}")
+            raise HTTPException(
+                status_code=500, detail=f"Erreur docker compose up -d : {up.stderr}"
+            )
         clear_bloodhound_status()
         log_event("_system", "bloodhound_reset_done")
         return {"status": "ok", "message": "BloodHound a été vidé et redémarré."}
     except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=500, detail="Timeout pendant la réinitialisation BloodHound.")
+        raise HTTPException(
+            status_code=500, detail="Timeout pendant la réinitialisation BloodHound."
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -750,14 +926,14 @@ def setup_status():
 @app.post("/api/setup/test")
 def test_setup_connections(data: dict):
     results = {"bloodhound": False, "neo4j": False, "errors": []}
-    
+
     bh_url = data.get("bloodhound_url", "")
     bh_user = data.get("bloodhound_username", "")
     bh_pass = data.get("bloodhound_password", "")
     neo4j_url = data.get("neo4j_url", "")
     neo4j_user = data.get("neo4j_user", "")
     neo4j_pass = data.get("neo4j_password", "")
-    
+
     if bh_url and bh_user and bh_pass:
         try:
             payload = {"login_method": "secret", "username": bh_user, "secret": bh_pass}
@@ -765,13 +941,16 @@ def test_setup_connections(data: dict):
             if r.ok:
                 results["bloodhound"] = True
             else:
-                results["errors"].append(f"BloodHound: Authentification échouée ({r.status_code})")
+                results["errors"].append(
+                    f"BloodHound: Authentification échouée ({r.status_code})"
+                )
         except Exception as e:
             results["errors"].append(f"BloodHound: {str(e)}")
-    
+
     if neo4j_url and neo4j_user and neo4j_pass:
         try:
             from neo4j import GraphDatabase
+
             driver = GraphDatabase.driver(neo4j_url, auth=(neo4j_user, neo4j_pass))
             driver.verify_connectivity()
             driver.close()
@@ -781,7 +960,7 @@ def test_setup_connections(data: dict):
             results["neo4j"] = True
         except Exception as e:
             results["errors"].append(f"Neo4j: {str(e)}")
-    
+
     return results
 
 
@@ -789,7 +968,7 @@ def test_setup_connections(data: dict):
 def complete_setup(data: dict):
     if is_setup_complete():
         raise HTTPException(status_code=400, detail="ToAD est déjà configuré")
-    
+
     mode = data.get("mode", "local")
     config = {
         "mode": mode,
@@ -803,11 +982,11 @@ def complete_setup(data: dict):
         "ingest_wait_seconds": data.get("ingest_wait_seconds", "30"),
         "created_at": datetime.now().isoformat(),
     }
-    
+
     save_config(config)
     SETUP_FLAG.parent.mkdir(parents=True, exist_ok=True)
     SETUP_FLAG.write_text(datetime.now().isoformat(), encoding="utf-8")
-    
+
     return {
         "status": "ok",
         "message": "Configuration sauvegardée. Redémarrez le conteneur pour appliquer les changements.",

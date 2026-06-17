@@ -1,0 +1,50 @@
+# Labeler configuration
+# Auto-label PRs based on files changed
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file: 
+      - '**/*.md'
+      - 'docs/**'
+
+frontend:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'web/*.html'
+      - 'web/**/*.html'
+
+backend:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'web/*.py'
+      - 'web/**/*.py'
+
+docker:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'Dockerfile'
+      - 'docker-compose*.yml'
+      - '.dockerignore'
+
+scripts:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'scripts/**'
+
+ci-cd:
+  - changed-files:
+    - any-glob-to-any-file:
+      - '.github/workflows/**'
+
+security:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'SECURITY.md'
+      - '.github/SECURITY.md'
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file:
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'poetry.lock'
