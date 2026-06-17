@@ -31,7 +31,6 @@
 - [Security](#-security)
 - [Documentation](#-documentation)
 - [Contributing](#-contributing)
-- [Roadmap](#-roadmap)
 - [Support](#-support)
 - [License](#-license)
 - [Acknowledgments](#-acknowledgments)
@@ -86,17 +85,6 @@ open http://localhost:9100
    - Import PingCastle separately
    - Import SharpHound separately
    - Generate AD-Miner separately
-
-## 📸 Screenshots
-
-### Main Dashboard
-![Dashboard](docs/screenshots/dashboard.png)
-
-### Client Actions
-![Client Actions](docs/screenshots/client-actions.png)
-
-### Reminder Modal
-![Reminder](docs/screenshots/rappel-modal.png)
 
 ## 🏗️ Architecture
 
@@ -229,17 +217,6 @@ pytest tests/
 ## 🤝 Contributing
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-### Roadmap
-
-- [ ] Integrated authentication (JWT/OAuth)
-- [ ] PDF support for reports
-- [ ] Tags and categories
-- [ ] Cross-audit comparison
-- [ ] Documented REST API (OpenAPI)
-- [ ] Plugin system for new tools
-- [ ] Azure AD / Entra ID support
-- [ ] Multi-user with roles
 
 ## 📄 License
 
