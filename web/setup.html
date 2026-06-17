@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ToAD - Installation</title>
+<style>
+:root {
+  --bg: #080f1c;
+  --surface: #0e1a2e;
+  --card: #131f35;
+  --card-alt: #192845;
+  --border: #1f3355;
+  --border-hi: #2d4a78;
+  --text: #eaf0fa;
+  --muted: #8aaad0;
+  --dim: #4e6a90;
+  --blue: #4d9fff;
+  --blue-h: #2b85f0;
+  --green: #2dd66e;
+  --green-h: #1ab857;
+  --orange: #ffb020;
+  --red: #ff5252;
+  --radius: 12px;
+  --radius-sm: 7px;
+  --shadow: 0 6px 32px rgba(0,0,0,0.6);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.setup-container {
+  max-width: 700px;
+  width: 100%;
+}
+
+.setup-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.setup-logo {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 800;
+  color: white;
+  margin: 0 auto 20px;
+}
+
+.setup-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.setup-subtitle {
+  color: var(--muted);
+  font-size: 16px;
+}
+
+.setup-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  box-shadow: var(--shadow);
+}
+
+.setup-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  position: relative;
+}
+
+.setup-steps::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: 40px;
+  right: 40px;
+  height: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.step-number {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  transition: all 0.3s;
+}
+
+.step.active .step-number {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: white;
+}
+
+.step.completed .step-number {
+  background: var(--green);
+  border-color: var(--green);
+  color: white;
+}
+
+.step-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.step.active .step-label {
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.step-content {
+  display: none;
+}
+
+.step-content.active {
+  display: block;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.form-input, .form-select {
+  width: 100%;
+  background: var(--card-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  color: var(--text);
+  font-size: 14px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.form-input:focus, .form-select:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(77,159,255,0.15);
+}
+
+.form-hint {
+  font-size: 12px;
+  color: var(--dim);
+  margin-top: 6px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.btn-blue {
+  background: var(--blue);
+  color: white;
+}
+
+.btn-blue:hover {
+  background: var(--blue-h);
+}
+
+.btn-green {
+  background: var(--green);
+  color: white;
+}
+
+.btn-green:hover {
+  background: var(--green-h);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border-hi);
+  color: var(--muted);
+}
+
+.btn-ghost:hover {
+  background: var(--card-alt);
+  color: var(--text);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+.mode-selector {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.mode-option {
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mode-option:hover {
+  border-color: var(--border-hi);
+}
+
+.mode-option.selected {
+  border-color: var(--blue);
+  background: rgba(77,159,255,0.05);
+}
+
+.mode-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.mode-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.test-results {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.test-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.test-item + .test-item {
+  border-top: 1px solid var(--border);
+}
+
+.test-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.test-icon.success {
+  background: rgba(45,214,110,0.2);
+  color: var(--green);
+}
+
+.test-icon.error {
+  background: rgba(255,82,82,0.2);
+  color: var(--red);
+}
+
+.test-icon.pending {
+  background: var(--card-alt);
+  color: var(--dim);
+}
+
+.test-label {
+  flex: 1;
+  font-size: 14px;
+}
+
+.test-status {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.alert {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 20px;
+}
+
+.alert-info {
+  background: rgba(77,159,255,0.1);
+  border: 1px solid rgba(77,159,255,0.3);
+  color: var(--blue);
+}
+
+.alert-success {
+  background: rgba(45,214,110,0.1);
+  border: 1px solid rgba(45,214,110,0.3);
+  color: var(--green);
+}
+
+.alert-warning {
+  background: rgba(255,176,32,0.1);
+  border: 1px solid rgba(255,176,32,0.3);
+  color: var(--orange);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.hidden {
+  display: none;
+}
+</style>
+</head>
+<body>
+
+<div class="setup-container">
+  <div class="setup-header">
+    <div class="setup-logo">AD</div>
+    <h1 class="setup-title">ToAD</h1>
+    <p class="setup-subtitle">Configuration initiale</p>
+  </div>
+
+  <div class="setup-card">
+    <div class="setup-steps">
+      <div class="step active" data-step="1">
+        <div class="step-number">1</div>
+        <div class="step-label">Mode</div>
+      </div>
+      <div class="step" data-step="2">
+        <div class="step-number">2</div>
+        <div class="step-label">BloodHound</div>
+      </div>
+      <div class="step" data-step="3">
+        <div class="step-number">3</div>
+        <div class="step-label">Neo4j</div>
+      </div>
+      <div class="step" data-step="4">
+        <div class="step-number">4</div>
+        <div class="step-label">Test</div>
+      </div>
+      <div class="step" data-step="5">
+        <div class="step-number">5</div>
+        <div class="step-label">Finaliser</div>
+      </div>
+    </div>
+
+    <div id="step-1" class="step-content active">
+      <h3 style="margin-bottom: 16px;">Choisissez votre mode d'installation</h3>
+      
+      <div class="mode-selector">
+        <div class="mode-option selected" data-mode="local">
+          <div class="mode-title">Local (Recommandé)</div>
+          <div class="mode-desc">BloodHound CE est inclus dans ToAD. Installation tout-en-un, parfait pour démarrer.</div>
+        </div>
+        <div class="mode-option" data-mode="remote">
+          <div class="mode-title">Remote</div>
+          <div class="mode-desc">Connectez-vous à une instance BloodHound existante. Pour les utilisateurs avancés.</div>
+        </div>
+      </div>
+
+      <div class="alert alert-info">
+        <strong>Mode local :</strong> ToAD va démarrer BloodHound CE, PostgreSQL et Neo4j automatiquement. Vous n'avez rien d'autre à installer.
+      </div>
+
+      <div class="alert alert-warning hidden" id="remote-info">
+        <strong>Mode remote :</strong> Assurez-vous que votre instance BloodHound est accessible depuis ce serveur et que vous avez les identifiants.
+      </div>
+
+      <div class="btn-row">
+        <div></div>
+        <button class="btn btn-blue" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <div id="step-2" class="step-content">
+      <h3 style="margin-bottom: 16px;">Configuration BloodHound</h3>
+
+      <div id="local-mode-fields">
+        <div class="alert alert-info">
+          En mode local, BloodHound sera automatiquement configuré. Définissez simplement les mots de passe.
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nom d'utilisateur administrateur</label>
+          <input type="text" class="form-input" id="bh-username" value="admin">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Mot de passe administrateur</label>
+          <input type="password" class="form-input" id="bh-password" placeholder="Mot de passe sécurisé">
+          <div class="form-hint">Minimum 12 caractères, mélangez lettres, chiffres et symboles</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Port BloodHound</label>
+          <input type="number" class="form-input" id="bh-port" value="8080">
+          <div class="form-hint">Port accessible depuis votre navigateur</div>
+        </div>
+      </div>
+
+      <div id="remote-mode-fields" class="hidden">
+        <div class="form-group">
+          <label class="form-label">URL BloodHound</label>
+          <input type="url" class="form-input" id="bh-url" placeholder="http://bloodhound.example.com:8080">
+          <div class="form-hint">URL complète de votre instance BloodHound</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nom d'utilisateur</label>
+          <input type="text" class="form-input" id="bh-username-remote" placeholder="admin">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Mot de passe</label>
+          <input type="password" class="form-input" id="bh-password-remote">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="prevStep()">← Précédent</button>
+        <button class="btn btn-blue" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <div id="step-3" class="step-content">
+      <h3 style="margin-bottom: 16px;">Configuration Neo4j</h3>
+
+      <div id="local-neo4j-fields">
+        <div class="alert alert-info">
+          Neo4j est la base de données utilisée par BloodHound. Définissez les identifiants.
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nom d'utilisateur Neo4j</label>
+          <input type="text" class="form-input" id="neo4j-username" value="neo4j">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Mot de passe Neo4j</label>
+          <input type="password" class="form-input" id="neo4j-password" placeholder="Mot de passe sécurisé">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Port Web Neo4j</label>
+            <input type="number" class="form-input" id="neo4j-web-port" value="7474">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Port Bolt Neo4j</label>
+            <input type="number" class="form-input" id="neo4j-bolt-port" value="7687">
+          </div>
+        </div>
+      </div>
+
+      <div id="remote-neo4j-fields" class="hidden">
+        <div class="form-group">
+          <label class="form-label">URL Neo4j (Bolt)</label>
+          <input type="url" class="form-input" id="neo4j-url" placeholder="bolt://neo4j.example.com:7687">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Nom d'utilisateur</label>
+          <input type="text" class="form-input" id="neo4j-username-remote" placeholder="neo4j">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Mot de passe</label>
+          <input type="password" class="form-input" id="neo4j-password-remote">
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="prevStep()">← Précédent</button>
+        <button class="btn btn-blue" onclick="nextStep()">Suivant →</button>
+      </div>
+    </div>
+
+    <div id="step-4" class="step-content">
+      <h3 style="margin-bottom: 16px;">Test des connexions</h3>
+
+      <p style="color: var(--muted); margin-bottom: 20px;">
+        Vérifions que tout est correctement configuré avant de finaliser.
+      </p>
+
+      <button class="btn btn-blue" onclick="testConnections()" id="test-btn">
+        Tester les connexions
+      </button>
+
+      <div class="test-results hidden" id="test-results">
+        <div class="test-item" id="test-bloodhound">
+          <div class="test-icon pending">○</div>
+          <div class="test-label">BloodHound</div>
+          <div class="test-status">En attente...</div>
+        </div>
+        <div class="test-item" id="test-neo4j">
+          <div class="test-icon pending">○</div>
+          <div class="test-label">Neo4j</div>
+          <div class="test-status">En attente...</div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="prevStep()">← Précédent</button>
+        <button class="btn btn-blue" onclick="nextStep()" id="step4-next" disabled>Suivant →</button>
+      </div>
+    </div>
+
+    <div id="step-5" class="step-content">
+      <h3 style="margin-bottom: 16px;">Finaliser l'installation</h3>
+
+      <div class="alert alert-info">
+        <strong>Récapitulatif :</strong><br>
+        Mode : <span id="summary-mode">local</span><br>
+        BloodHound : <span id="summary-bh">configuré</span><br>
+        Neo4j : <span id="summary-neo4j">configuré</span>
+      </div>
+
+      <div class="alert alert-warning">
+        <strong>Important :</strong> Après la finalisation, le conteneur devra être redémarré pour appliquer la configuration.
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="prevStep()">← Précédent</button>
+        <button class="btn btn-green" onclick="completeSetup()" id="complete-btn">
+          Finaliser l'installation
+        </button>
+      </div>
+
+      <div id="completion-message" class="hidden" style="margin-top: 20px;">
+        <div class="alert alert-success">
+          <strong>Installation terminée !</strong><br>
+          Le conteneur va redémarrer automatiquement. Vous serez redirigé vers l'application dans quelques instants.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentStep = 1;
+let selectedMode = 'local';
+let config = {};
+
+document.querySelectorAll('.mode-option').forEach(option => {
+  option.addEventListener('click', function() {
+    document.querySelectorAll('.mode-option').forEach(o => o.classList.remove('selected'));
+    this.classList.add('selected');
+    selectedMode = this.dataset.mode;
+    
+    if (selectedMode === 'remote') {
+      document.getElementById('remote-info').classList.remove('hidden');
+    } else {
+      document.getElementById('remote-info').classList.add('hidden');
+    }
+  });
+});
+
+function updateSteps() {
+  document.querySelectorAll('.step').forEach((step, index) => {
+    const stepNum = index + 1;
+    step.classList.remove('active', 'completed');
+    if (stepNum === currentStep) {
+      step.classList.add('active');
+    } else if (stepNum < currentStep) {
+      step.classList.add('completed');
+    }
+  });
+
+  document.querySelectorAll('.step-content').forEach(content => {
+    content.classList.remove('active');
+  });
+  document.getElementById(`step-${currentStep}`).classList.add('active');
+
+  if (currentStep === 2) {
+    if (selectedMode === 'local') {
+      document.getElementById('local-mode-fields').classList.remove('hidden');
+      document.getElementById('remote-mode-fields').classList.add('hidden');
+    } else {
+      document.getElementById('local-mode-fields').classList.add('hidden');
+      document.getElementById('remote-mode-fields').classList.remove('hidden');
+    }
+  }
+
+  if (currentStep === 3) {
+    if (selectedMode === 'local') {
+      document.getElementById('local-neo4j-fields').classList.remove('hidden');
+      document.getElementById('remote-neo4j-fields').classList.add('hidden');
+    } else {
+      document.getElementById('local-neo4j-fields').classList.add('hidden');
+      document.getElementById('remote-neo4j-fields').classList.remove('hidden');
+    }
+  }
+
+  if (currentStep === 5) {
+    document.getElementById('summary-mode').textContent = selectedMode;
+    document.getElementById('summary-bh').textContent = selectedMode === 'local' ? 'Local (port ' + document.getElementById('bh-port').value + ')' : document.getElementById('bh-url').value;
+    document.getElementById('summary-neo4j').textContent = selectedMode === 'local' ? 'Local (port ' + document.getElementById('neo4j-bolt-port').value + ')' : document.getElementById('neo4j-url').value;
+  }
+}
+
+function nextStep() {
+  if (currentStep < 5) {
+    currentStep++;
+    updateSteps();
+  }
+}
+
+function prevStep() {
+  if (currentStep > 1) {
+    currentStep--;
+    updateSteps();
+  }
+}
+
+async function testConnections() {
+  const btn = document.getElementById('test-btn');
+  const results = document.getElementById('test-results');
+  
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Test en cours...';
+  results.classList.remove('hidden');
+
+  config = {
+    mode: selectedMode,
+    toad_port: '9100',
+    ingest_wait_seconds: 30,
+  };
+
+  if (selectedMode === 'local') {
+    config.bloodhound_url = 'http://localhost:' + document.getElementById('bh-port').value;
+    config.bloodhound_username = document.getElementById('bh-username').value;
+    config.bloodhound_password = document.getElementById('bh-password').value;
+    config.neo4j_url = 'bolt://localhost:' + document.getElementById('neo4j-bolt-port').value;
+    config.neo4j_user = document.getElementById('neo4j-username').value;
+    config.neo4j_password = document.getElementById('neo4j-password').value;
+  } else {
+    config.bloodhound_url = document.getElementById('bh-url').value;
+    config.bloodhound_username = document.getElementById('bh-username-remote').value;
+    config.bloodhound_password = document.getElementById('bh-password-remote').value;
+    config.neo4j_url = document.getElementById('neo4j-url').value;
+    config.neo4j_user = document.getElementById('neo4j-username-remote').value;
+    config.neo4j_password = document.getElementById('neo4j-password-remote').value;
+  }
+
+  try {
+    const response = await fetch('/api/setup/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+
+    const data = await response.json();
+
+    const bhTest = document.getElementById('test-bloodhound');
+    const neo4jTest = document.getElementById('test-neo4j');
+
+    if (data.bloodhound) {
+      bhTest.querySelector('.test-icon').className = 'test-icon success';
+      bhTest.querySelector('.test-icon').textContent = '✓';
+      bhTest.querySelector('.test-status').textContent = 'Connecté';
+    } else {
+      bhTest.querySelector('.test-icon').className = 'test-icon error';
+      bhTest.querySelector('.test-icon').textContent = '✗';
+      bhTest.querySelector('.test-status').textContent = 'Échec';
+    }
+
+    if (data.neo4j) {
+      neo4jTest.querySelector('.test-icon').className = 'test-icon success';
+      neo4jTest.querySelector('.test-icon').textContent = '✓';
+      neo4jTest.querySelector('.test-status').textContent = 'Connecté';
+    } else {
+      neo4jTest.querySelector('.test-icon').className = 'test-icon error';
+      neo4jTest.querySelector('.test-icon').textContent = '✗';
+      neo4jTest.querySelector('.test-status').textContent = 'Échec';
+    }
+
+    document.getElementById('step4-next').disabled = !(data.bloodhound && data.neo4j);
+
+  } catch (error) {
+    alert('Erreur lors du test : ' + error.message);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'Tester les connexions';
+}
+
+async function completeSetup() {
+  const btn = document.getElementById('complete-btn');
+  const message = document.getElementById('completion-message');
+
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Finalisation...';
+
+  try {
+    const response = await fetch('/api/setup/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+
+    const data = await response.json();
+
+    if (data.status === 'ok') {
+      message.classList.remove('hidden');
+      btn.style.display = 'none';
+
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 5000);
+    } else {
+      alert('Erreur : ' + data.message);
+      btn.disabled = false;
+      btn.innerHTML = 'Finaliser l\'installation';
+    }
+
+  } catch (error) {
+    alert('Erreur : ' + error.message);
+    btn.disabled = false;
+    btn.innerHTML = 'Finaliser l\'installation';
+  }
+}
+
+updateSteps();
+</script>
+
+</body>
+</html>

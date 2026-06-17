@@ -1,0 +1,31 @@
+{
+  "trust_domains": [
+    {
+      "domain": "",
+      "expired": false,
+      "cert": "",
+      "private_key": ""
+    }
+  ],
+  "tls": {
+    "cert_file": "",
+    "key_file": ""
+  },
+  "collector": {
+    "listen_address": "0.0.0.0:8080"
+  },
+  "database": {
+    "connection": "",
+    "max_connections": 100
+  },
+  "neo4j": {
+    "connection": ""
+  },
+  "datapi": {
+    "listen_address": "0.0.0.0:8080",
+    "allowed_origins": ["*"]
+  },
+  "admin": {
+    "listen_address": "0.0.0.0:8080"
+  }
+}

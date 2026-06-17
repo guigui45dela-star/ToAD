@@ -1,0 +1,93 @@
+services:
+  toad-web:
+    build: .
+    container_name: toad-web
+    restart: unless-stopped
+    ports:
+      - "${TOAD_PORT:-9100}:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      TZ: "${TZ:-Europe/Paris}"
+      BLOODHOUND_URL: "${BLOODHOUND_URL:-http://toad-bloodhound:8080}"
+      BLOODHOUND_USERNAME: "${BLOODHOUND_USERNAME:-admin}"
+      BLOODHOUND_PASSWORD: "${BLOODHOUND_PASSWORD:?BLOODHOUND_PASSWORD is required}"
+      NEO4J_URL: "${NEO4J_URL:-bolt://toad-graph-db:7687}"
+      NEO4J_USER: "${NEO4J_USER:-neo4j}"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}"
+      INGEST_WAIT_SECONDS: "${INGEST_WAIT_SECONDS:-30}"
+      BLOODHOUND_MODE: "${BLOODHOUND_MODE:-local}"
+    volumes:
+      - ./clients:/data:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    depends_on:
+      toad-bloodhound:
+        condition: service_healthy
+    networks:
+      - toad-network
+
+  toad-bloodhound:
+    image: specterops/bloodhound:latest
+    container_name: toad-bloodhound
+    restart: unless-stopped
+    ports:
+      - "${BLOODHOUND_PORT:-8080}:8080"
+    environment:
+      - bhe_database_connection=user=${POSTGRES_USER:-bloodhound} password=${POSTGRES_PASSWORD:-bloodhoundcommunityedition} dbname=${POSTGRES_DB:-bloodhound} host=toad-app-db
+      - bhe_neo4j_connection=neo4j://${NEO4J_USER:-neo4j}:${NEO4J_PASSWORD:-bloodhoundcommunityedition}@toad-graph-db:7687/
+    volumes:
+      - ./config/bloodhound.config.json:/bloodhound.config.json:ro
+    depends_on:
+      toad-app-db:
+        condition: service_healthy
+      toad-graph-db:
+        condition: service_healthy
+    networks:
+      - toad-network
+
+  toad-app-db:
+    image: postgres:16
+    container_name: toad-app-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bloodhound}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bloodhoundcommunityedition}
+      POSTGRES_DB: ${POSTGRES_DB:-bloodhound}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bloodhound} -d ${POSTGRES_DB:-bloodhound}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - toad-network
+
+  toad-graph-db:
+    image: neo4j:4.4
+    container_name: toad-graph-db
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-bloodhoundcommunityedition}
+      NEO4J_dbms_allow__upgrade: ${NEO4J_ALLOW_UPGRADE:-true}
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -O /dev/null -q http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - toad-network
+
+volumes:
+  postgres-data:
+  neo4j-data:
+
+networks:
+  toad-network:
+    driver: bridge

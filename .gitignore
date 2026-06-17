@@ -1,0 +1,95 @@
+# Fichiers d'environnement
+.env
+.env.local
+.env.*.local
+
+# Données clients (contient les rapports sensibles)
+clients/
+data/
+
+# Configuration runtime
+config/installed.flag
+config/toad.json
+
+# Logs
+*.log
+logs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker (volumes locaux)
+postgres-data/
+neo4j-data/
+
+# AD-Miner (rendus temporaires)
+render_*/
+cache_neo4j/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Documentation générée
+docs/screenshots/*.png
+!docs/screenshots/README.md
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Secrets
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Documents internes (contiennent des secrets ou sont des notes de travail)
+context.md
+SECURITY_AUDIT.md
+PERFORMANCE_ANALYSIS.md
+UX_IMPROVEMENTS.md
+best-practices-ad.md
+ABOUT.md
+
+# Configuration interne
+.claude/
+.opencode/
+
+# Backups
+backups/
+
+# Ancien docker-compose
+docker/
+
+# Docker build
+.dockerignore

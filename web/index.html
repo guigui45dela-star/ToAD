@@ -1,0 +1,1685 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Active Directory — GI Informatique</title>
+<style>
+:root {
+  --bg:         #080f1c;
+  --surface:    #0e1a2e;
+  --card:       #131f35;
+  --card-alt:   #192845;
+  --border:     #1f3355;
+  --border-hi:  #2d4a78;
+  --text:       #eaf0fa;
+  --muted:      #8aaad0;
+  --dim:        #4e6a90;
+  --blue:       #4d9fff;
+  --blue-h:     #2b85f0;
+  --green:      #2dd66e;
+  --green-h:    #1ab857;
+  --orange:     #ffb020;
+  --orange-h:   #e09000;
+  --red:        #ff5252;
+  --red-h:      #e03030;
+  --radius:     12px;
+  --radius-sm:  7px;
+  --shadow:     0 6px 32px rgba(0,0,0,0.6);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ── Header ── */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(8,15,28,0.96);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-brand { display: flex; align-items: center; gap: 14px; }
+
+.brand-icon {
+  width: 42px; height: 42px;
+  background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
+  color: white;
+  letter-spacing: -1px;
+  flex-shrink: 0;
+}
+
+.brand-title { font-size: 18px; font-weight: 700; }
+.brand-sub   { font-size: 13px; color: var(--muted); }
+
+.header-right { display: flex; align-items: center; gap: 14px; }
+
+.stat-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.stat-pill strong { color: var(--text); font-size: 14px; }
+
+/* ── BloodHound status pill (in header) ── */
+.bh-status-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  max-width: 340px;
+  overflow: hidden;
+}
+.bh-status-pill.active {
+  border-color: rgba(77,159,255,0.5);
+  background: rgba(77,159,255,0.08);
+  color: var(--blue);
+}
+.bh-status-pill.empty {
+  border-color: rgba(239,68,68,0.3);
+  background: rgba(239,68,68,0.06);
+  color: var(--muted);
+}
+.bh-status-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.bh-status-pill.active .bh-status-dot { background: var(--blue); box-shadow: 0 0 6px rgba(77,159,255,0.8); }
+.bh-status-pill.empty  .bh-status-dot { background: var(--dim); }
+.bh-status-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Jobs bar ── */
+.jobs-bar {
+  display: none;
+  margin: 0 0 20px;
+  background: var(--surface);
+  border: 1px solid rgba(255,176,32,0.4);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+}
+
+.job-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+.job-item + .job-item { border-top: 1px solid var(--border); }
+
+.spinner {
+  width: 15px; height: 15px;
+  border: 2px solid var(--border-hi);
+  border-top-color: var(--orange);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.job-label { font-weight: 600; color: var(--orange); min-width: 220px; font-size: 14px; }
+.job-msg   { color: var(--muted); font-size: 13px; }
+
+/* ── Toasts ── */
+.toast-container {
+  position: fixed;
+  top: 78px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 13px 17px;
+  min-width: 310px;
+  max-width: 440px;
+  box-shadow: var(--shadow);
+  pointer-events: all;
+  animation: slide-in 0.3s ease;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.toast.success { border-left: 4px solid var(--green); }
+.toast.error   { border-left: 4px solid var(--red); }
+.toast.info    { border-left: 4px solid var(--blue); }
+
+.toast-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.toast.success .toast-dot { background: var(--green); }
+.toast.error   .toast-dot { background: var(--red); }
+.toast.info    .toast-dot { background: var(--blue); }
+
+.toast-title { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+.toast-msg   { font-size: 13px; color: var(--muted); }
+
+/* ── Layout ── */
+.main { max-width: 1400px; margin: 0 auto; padding: 28px 32px 60px; }
+
+/* ── Panels ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 26px;
+  margin-bottom: 20px;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  gap: 12px;
+}
+
+.panel-title {
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel-icon {
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+  letter-spacing: -0.5px;
+}
+.panel-icon.blue   { background: rgba(77,159,255,0.18); color: var(--blue); }
+.panel-icon.green  { background: rgba(45,214,110,0.18); color: var(--green); }
+.panel-icon.orange { background: rgba(255,176,32,0.18); color: var(--orange); }
+.panel-icon.red    { background: rgba(255,82,82,0.18);  color: var(--red); }
+
+.panel-hint { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
+
+/* ── Forms ── */
+.form-row { display: grid; gap: 14px; align-items: end; }
+.form-row-2 { grid-template-columns: 1fr 1fr; }
+.form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+.form-row-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+.field { display: flex; flex-direction: column; gap: 7px; }
+
+label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+input[type="text"],
+input[type="search"],
+select {
+  width: 100%;
+  background: var(--card-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 13px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input[type="text"]:focus,
+input[type="search"]:focus,
+select:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(77,159,255,0.15);
+}
+input::placeholder { color: var(--dim); }
+select option { background: var(--card); color: var(--text); }
+
+input[type="file"] {
+  width: 100%;
+  background: var(--card-alt);
+  border: 1px dashed var(--border-hi);
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+input[type="file"]:hover { border-color: var(--blue); color: var(--text); }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
+
+.btn-blue   { background: var(--blue);   color: #fff; box-shadow: 0 2px 10px rgba(77,159,255,0.3); }
+.btn-blue:hover   { background: var(--blue-h); box-shadow: 0 4px 14px rgba(77,159,255,0.4); }
+
+.btn-green  { background: var(--green);  color: #fff; box-shadow: 0 2px 10px rgba(45,214,110,0.3); }
+.btn-green:hover  { background: var(--green-h); box-shadow: 0 4px 14px rgba(45,214,110,0.4); }
+
+.btn-orange { background: var(--orange); color: #1a1200; box-shadow: 0 2px 10px rgba(255,176,32,0.3); }
+.btn-orange:hover { background: var(--orange-h); box-shadow: 0 4px 14px rgba(255,176,32,0.4); }
+
+.btn-red    { background: var(--red);    color: #fff; box-shadow: 0 2px 10px rgba(255,82,82,0.3); }
+.btn-red:hover    { background: var(--red-h); box-shadow: 0 4px 14px rgba(255,82,82,0.4); }
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border-hi);
+  color: var(--muted);
+  box-shadow: none;
+}
+.btn-ghost:hover { background: var(--card-alt); color: var(--text); border-color: var(--blue); }
+
+.btn-sm { padding: 7px 13px; font-size: 13px; }
+
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+
+/* ── BH panel row ── */
+.bh-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* ── Section header ── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  gap: 16px;
+}
+
+.section-title { font-size: 18px; font-weight: 700; }
+
+.section-right { display: flex; align-items: center; gap: 10px; }
+
+.search-input { width: 220px; }
+
+/* ── Client grid ── */
+.clients-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: 16px;
+}
+
+.client-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  position: relative;
+}
+.client-card:hover {
+  border-color: var(--border-hi);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+  transform: translateY(-2px);
+}
+
+/* Active in BH: blue left accent */
+.client-card.bh-active {
+  border-left: 3px solid var(--blue);
+}
+
+.card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+
+.card-name-block { flex: 1; min-width: 0; }
+.card-client-name { font-size: 18px; font-weight: 700; }
+
+.slug-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  background: var(--card-alt);
+  border: 1px solid var(--border-hi);
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: monospace;
+  margin-top: 4px;
+  letter-spacing: 0.03em;
+}
+
+/* BloodHound active badge on card */
+.bh-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(77,159,255,0.12);
+  border: 1px solid rgba(77,159,255,0.35);
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--blue);
+  font-weight: 600;
+  margin-top: 6px;
+  max-width: 100%;
+  overflow: hidden;
+}
+.bh-card-badge-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--blue);
+  box-shadow: 0 0 5px rgba(77,159,255,0.8);
+  flex-shrink: 0;
+}
+.bh-card-badge-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Status indicators ── */
+.card-indicators { display: flex; flex-direction: column; gap: 8px; }
+
+.indicator {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+}
+
+.dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.dot-green  { background: var(--green); box-shadow: 0 0 7px rgba(45,214,110,0.6); }
+.dot-orange { background: var(--orange); box-shadow: 0 0 5px rgba(255,176,32,0.4); }
+.dot-red    { background: var(--red); box-shadow: 0 0 5px rgba(255,82,82,0.4); }
+.dot-gray   { background: var(--dim); }
+
+.indicator-name { flex: 1; }
+.indicator-date { font-size: 12px; color: var(--dim); }
+
+/* ── Card meta (audit date) ── */
+.card-meta { font-size: 12px; color: var(--dim); }
+
+/* ── Card buttons ── */
+.card-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--dim);
+  font-size: 15px;
+}
+
+/* ── Modals ── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(5px);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.open { display: flex; }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius);
+  padding: 28px;
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow);
+  animation: modal-in 0.2s ease;
+}
+.modal.modal-sm { max-width: 420px; }
+
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.96) translateY(-10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.modal-title { font-size: 17px; font-weight: 700; }
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 5px;
+  transition: background 0.15s;
+}
+.modal-close:hover { color: var(--text); background: var(--card); }
+
+.modal-section {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px 18px;
+  margin-bottom: 12px;
+}
+
+.modal-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--blue);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 13px;
+}
+
+.modal-section.danger { border-color: rgba(255,82,82,0.3); }
+.modal-section.danger .modal-section-title { color: var(--red); }
+
+.modal-hint { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+
+/* ── BH warning banner ── */
+.bh-warning {
+  background: rgba(255,176,32,0.1);
+  border: 1px solid rgba(255,176,32,0.4);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--orange);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+/* ── Inline status ── */
+.inline-status { font-size: 13px; margin-top: 10px; min-height: 18px; }
+.inline-status.success { color: var(--green); }
+.inline-status.error   { color: var(--red); }
+.inline-status.info    { color: var(--orange); }
+
+.modal-status { font-size: 13px; margin-top: 10px; min-height: 18px; }
+.modal-status.success { color: var(--green); }
+.modal-status.error   { color: var(--red); }
+.modal-status.info    { color: var(--orange); }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .header-right .stat-pill { display: none; }
+  .main { padding: 16px 16px 40px; }
+  .form-row-4, .form-row-3 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .form-row-2, .form-row-3, .form-row-4 { grid-template-columns: 1fr; }
+  .clients-grid { grid-template-columns: 1fr; }
+  .header { padding: 0 16px; }
+  .bh-status-pill { display: none; }
+  .section-header { flex-wrap: wrap; }
+  .search-input { width: 100%; }
+}
+
+hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+/* ── Modal rappel ── */
+.rappel-menu-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.rappel-menu-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  width: 100%;
+}
+.rappel-menu-item:hover {
+  border-color: var(--blue);
+  background: var(--card-alt);
+  transform: translateY(-1px);
+}
+.rappel-menu-item-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 5px;
+}
+.rappel-menu-item-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+.rappel-back {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.rappel-back-title { font-size: 17px; font-weight: 700; }
+
+.rappel-step {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.rappel-step:last-child { margin-bottom: 0; }
+
+.rappel-num {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.rappel-body { flex: 1; }
+.rappel-tool { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.rappel-tool .tool-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.tool-badge.portal  { background: rgba(255,176,32,0.18); color: var(--orange); }
+.tool-badge.windows { background: rgba(77,159,255,0.18); color: var(--blue); }
+.tool-badge.linux   { background: rgba(45,214,110,0.18); color: var(--green); }
+
+.rappel-desc { font-size: 13px; color: var(--muted); margin-bottom: 10px; line-height: 1.6; }
+
+.code-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-family: "Consolas", "SF Mono", "Monaco", monospace;
+  font-size: 13px;
+  color: #c9e0ff;
+  line-height: 1.7;
+  overflow-x: auto;
+  white-space: pre;
+  margin-bottom: 6px;
+}
+.code-comment { color: var(--dim); }
+
+.rappel-warning {
+  background: rgba(255,82,82,0.08);
+  border: 1px solid rgba(255,82,82,0.3);
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  font-size: 13px;
+  color: #ff8a8a;
+  margin-top: 8px;
+}
+.rappel-info {
+  background: rgba(77,159,255,0.08);
+  border: 1px solid rgba(77,159,255,0.3);
+  border-radius: var(--radius-sm);
+  padding: 9px 13px;
+  font-size: 13px;
+  color: #90c4ff;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+.rappel-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<header class="header">
+  <div class="header-brand">
+    <div class="brand-icon">AD</div>
+    <div>
+      <div class="brand-title">Portail Audit Active Directory</div>
+      <div class="brand-sub">GI Informatique</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="bh-status-pill empty" id="bh-header-pill">
+      <div class="bh-status-dot"></div>
+      <span class="bh-status-text" id="bh-header-text">BloodHound vide</span>
+    </div>
+    <div class="stat-pill"><span>Clients</span><strong id="stat-clients">—</strong></div>
+    <div class="stat-pill"><span>PingCastle</span><strong id="stat-pingcastle">—</strong></div>
+    <div class="stat-pill"><span>AD-Miner</span><strong id="stat-adminer">—</strong></div>
+    <button class="btn btn-ghost btn-sm" onclick="openModal('modal-rappel')">Rappel</button>
+  </div>
+</header>
+
+<div class="main">
+
+<!-- ── Jobs bar ─────────────────────────────────────────────────────────── -->
+<div class="jobs-bar" id="jobs-bar"></div>
+
+<!-- ── Administration BloodHound ─────────────────────────────────────────── -->
+<div class="panel">
+  <div class="panel-header">
+    <div class="panel-title">
+      <div class="panel-icon red">BH</div>
+      Administration BloodHound
+    </div>
+    <a class="btn btn-ghost btn-sm" href="https://bloodhound.gi-informatique.com/" target="_blank">
+      Ouvrir BloodHound
+    </a>
+  </div>
+  <div class="bh-row">
+    <button class="btn btn-red" onclick="resetBloodHound()">Vider BloodHound</button>
+    <span style="font-size:13px; color:var(--muted)">
+      A executer avant chaque nouvel audit pour eviter le melange de donnees.
+    </span>
+  </div>
+  <div class="inline-status" id="bh-status"></div>
+</div>
+
+<!-- ── Audit complet ─────────────────────────────────────────────────────── -->
+<div class="panel">
+  <div class="panel-header">
+    <div class="panel-title">
+      <div class="panel-icon orange">A</div>
+      Audit complet
+    </div>
+  </div>
+  <p class="panel-hint">
+    Cree ou met a jour le client, importe PingCastle, envoie le ZIP SharpHound dans BloodHound,
+    attend l'ingestion (30 s), puis genere le rapport AD-Miner. Le processus tourne en arriere-plan.
+  </p>
+  <div class="form-row form-row-4">
+    <div class="field">
+      <label>Nom affiche</label>
+      <input id="fa-name" type="text" placeholder="GI Informatique">
+    </div>
+    <div class="field">
+      <label>Slug</label>
+      <input id="fa-slug" type="text" placeholder="gi">
+    </div>
+    <div class="field">
+      <label>Rapport PingCastle (.html)</label>
+      <input id="fa-pingcastle" type="file" accept=".html,.htm">
+    </div>
+    <div class="field">
+      <label>ZIP SharpHound (.zip)</label>
+      <input id="fa-sharphound" type="file" accept=".zip">
+    </div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-orange" onclick="createFullAudit()">Lancer l'audit</button>
+  </div>
+  <div class="inline-status" id="fa-status"></div>
+</div>
+
+<!-- ── Clients section ───────────────────────────────────────────────────── -->
+<div class="section-header">
+  <span class="section-title">Clients</span>
+  <div class="section-right">
+    <input id="search" type="search" class="search-input" placeholder="Rechercher...">
+    <button class="btn btn-blue btn-sm" onclick="openNewClientModal()">Nouveau client</button>
+  </div>
+</div>
+
+<div class="clients-grid" id="clients"></div>
+
+</div><!-- .main -->
+
+<!-- ── Toasts ───────────────────────────────────────────────────────────── -->
+<div class="toast-container" id="toasts"></div>
+
+<!-- ── Modal : Rappel ────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-rappel" onclick="closeModalOnOverlay(event,'modal-rappel')">
+  <div class="modal" style="max-width:680px">
+
+    <!-- Écran 1 : Menu de sélection -->
+    <div id="rappel-menu">
+      <div class="modal-header">
+        <div class="modal-title">Quel rappel ?</div>
+        <button class="modal-close" onclick="closeModal('modal-rappel')">x</button>
+      </div>
+      <div class="rappel-menu-grid">
+        <button class="rappel-menu-item" onclick="showRappel('rt-portail','Portail — Procédure complète')">
+          <div class="rappel-menu-item-title">Portail</div>
+          <div class="rappel-menu-item-desc">Workflow complet : vider BH, audit, import, consultation</div>
+        </button>
+        <button class="rappel-menu-item" onclick="showRappel('rt-pingcastle','PingCastle')">
+          <div class="rappel-menu-item-title">PingCastle</div>
+          <div class="rappel-menu-item-desc">Lancement, commandes, fichiers générés</div>
+        </button>
+        <button class="rappel-menu-item" onclick="showRappel('rt-sharphound','SharpHound — Windows')">
+          <div class="rappel-menu-item-title">SharpHound (Windows)</div>
+          <div class="rappel-menu-item-desc">Préparation, collecte complète, gestion Defender / ESET / Bitdefender</div>
+        </button>
+        <button class="rappel-menu-item" onclick="showRappel('rt-bh-python','SharpHound — Linux (bloodhound-python)')">
+          <div class="rappel-menu-item-title">SharpHound depuis Linux</div>
+          <div class="rappel-menu-item-desc">bloodhound-python : aucun AV, depuis Kali / WSL / Debian</div>
+        </button>
+        <button class="rappel-menu-item" onclick="showRappel('rt-vm','VM d\'audit Hyper-V')">
+          <div class="rappel-menu-item-title">VM d'audit Hyper-V</div>
+          <div class="rappel-menu-item-desc">Template, jonction domaine, réinitialisation par snapshot</div>
+        </button>
+        <button class="rappel-menu-item" onclick="showRappel('rt-av','Gestion antivirus')">
+          <div class="rappel-menu-item-title">Gestion antivirus</div>
+          <div class="rappel-menu-item-desc">Exclusions Defender, ESET PROTECT, Bitdefender GravityZone</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Écran 2 : Contenu du rappel sélectionné -->
+    <div id="rappel-content" style="display:none">
+      <div class="rappel-back">
+        <button class="btn btn-ghost btn-sm" onclick="backToRappelMenu()">Retour</button>
+        <div class="rappel-back-title" id="rappel-content-title"></div>
+        <button class="modal-close" style="margin-left:auto" onclick="closeModal('modal-rappel')">x</button>
+      </div>
+
+      <!-- Portail -->
+      <div class="rappel-detail" id="rt-portail" style="display:none">
+        <div class="rappel-step">
+          <div class="rappel-num" style="background:var(--red)">!</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Avant tout — Vider BloodHound <span class="tool-badge portal">Obligatoire</span></div>
+            <div class="rappel-desc">
+              Cliquer sur <strong>Vider BloodHound</strong> avant chaque nouvel audit client.
+              BloodHound ne supporte pas plusieurs clients — mélanger les données fausse tous les chemins d'attaque.
+              L'indicateur en haut du portail confirme que BloodHound est vide.
+            </div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">1</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Audit complet <span class="tool-badge portal">Recommandé</span></div>
+            <div class="rappel-desc">Remplir le formulaire <strong>Audit complet</strong> :</div>
+            <div class="code-block"><span class="code-comment">Nom affiché  →  ex: Mairie de Bordeaux</span>
+<span class="code-comment">Slug         →  ex: mbordeaux  (minuscules, sans espaces)</span>
+<span class="code-comment">PingCastle   →  ad_hc_domaine.client.local.html</span>
+<span class="code-comment">SharpHound   →  Audit_Client.zip</span></div>
+            <div class="rappel-desc" style="margin-top:8px">Le portail gère : archivage, import BloodHound, attente ingestion, génération AD-Miner. Durée : 2 à 20 min.</div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">2</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Actions unitaires <span class="tool-badge portal">Si besoin</span></div>
+            <div class="rappel-desc">Bouton <strong>Actions</strong> sur chaque carte client pour refaire une étape :</div>
+            <div class="code-block"><span class="code-comment">Importer PingCastle  →  met à jour le rapport publié</span>
+<span class="code-comment">Importer SharpHound  →  renvoi dans BloodHound</span>
+<span class="code-comment">Générer AD-Miner     →  régénère avec les données BH actuelles</span></div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">3</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Consultation</div>
+            <div class="rappel-desc">
+              Rapports disponibles sur les cartes clients une fois générés.
+              Sources archivées dans <code style="font-family:monospace;color:var(--blue)">clients/&lt;slug&gt;/sources/</code>.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PingCastle -->
+      <div class="rappel-detail" id="rt-pingcastle" style="display:none">
+        <div class="rappel-step">
+          <div class="rappel-num">1</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Pré-requis <span class="tool-badge windows">Machine jointe au domaine</span></div>
+            <div class="rappel-desc">Compte utilisateur du domaine suffisant — pas besoin de droits admin pour le healthcheck.</div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">2</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Lancement</div>
+            <div class="code-block"><span class="code-comment"># Mode silencieux (recommandé)</span>
+.\PingCastle.exe --healthcheck
+
+<span class="code-comment"># Domaine spécifique</span>
+.\PingCastle.exe --healthcheck --server domaine.client.local
+
+<span class="code-comment"># Mode interactif : double-clic → option 1 (healthcheck)</span></div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">3</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Fichiers générés</div>
+            <div class="code-block"><span class="code-comment">ad_hc_domaine.client.local.html  ← uploader sur le portail</span>
+<span class="code-comment">ad_hc_domaine.client.local.xml   ← conserver en source</span></div>
+            <div class="rappel-info" style="margin-top:8px">PingCastle est rarement bloqué par les AV — pas d'exclusion nécessaire.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SharpHound Windows -->
+      <div class="rappel-detail" id="rt-sharphound" style="display:none">
+        <div class="rappel-step">
+          <div class="rappel-num">1</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Préparation <span class="tool-badge windows">Machine jointe au domaine</span></div>
+            <div class="code-block">New-Item -ItemType Directory -Path "C:\AuditAD" -Force
+Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
+            <div class="rappel-desc" style="margin-top:8px">Copier <strong>SharpHound.exe</strong> dans <code style="font-family:monospace;color:var(--blue)">C:\AuditAD\</code>.</div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">2</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Collecte</div>
+            <div class="code-block">.\SharpHound.exe -c All --zipfilename Audit_Client.zip</div>
+            <div class="rappel-desc" style="margin-top:8px">
+              <code style="font-family:monospace;color:var(--blue)">-c All</code> : utilisateurs, groupes, GPO, sessions, ACLs, trusts, ADCS.
+              Sans ce flag le rapport AD-Miner sera incomplet. Durée : 2 à 15 min.
+            </div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">3</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Si AV bloque malgré l'exclusion</div>
+            <div class="rappel-desc">Essayer le renommage de l'exécutable avant lancement :</div>
+            <div class="code-block">Copy-Item SharpHound.exe -Destination C:\AuditAD\svc_audit.exe
+.\svc_audit.exe -c All --zipfilename Audit_Client.zip</div>
+            <div class="rappel-desc" style="margin-top:8px">Si toujours bloqué : utiliser <strong>bloodhound-python depuis Linux</strong> (voir rappel dédié) ou la <strong>VM Hyper-V</strong>.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- bloodhound-python Linux -->
+      <div class="rappel-detail" id="rt-bh-python" style="display:none">
+        <div class="rappel-step">
+          <div class="rappel-num" style="background:var(--green)">!</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Avantage principal <span class="tool-badge linux">Linux / WSL / Kali</span></div>
+            <div class="rappel-desc">
+              bloodhound-python tourne entièrement sur Linux — l'AV Windows du client n'a aucune visibilité.
+              Pas de VM, pas d'exclusion à demander. Seul pré-requis : accès réseau au DC.
+            </div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">1</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Installation <span class="tool-badge linux">Une seule fois</span></div>
+            <div class="code-block">pip install bloodhound</div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">2</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Collecte complète</div>
+            <div class="code-block">bloodhound-python \
+  -u utilisateur \
+  -p "motdepasse" \
+  -d domaine.client.local \
+  -dc dc01.domaine.client.local \
+  -c All \
+  --zip \
+  --zipfilename Audit_Client.zip</div>
+            <div class="rappel-desc" style="margin-top:8px">Le ZIP est généré dans le dossier courant — uploader directement sur le portail.</div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">3</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Ports nécessaires depuis votre machine</div>
+            <div class="code-block"><span class="code-comment">LDAP   389/tcp   vers le DC</span>
+<span class="code-comment">LDAPS  636/tcp   vers le DC (si LDAP signé obligatoire)</span>
+<span class="code-comment">SMB    445/tcp   vers les membres du domaine (sessions)</span>
+<span class="code-comment">RPC    135/tcp   vers le DC</span></div>
+            <div class="rappel-info" style="margin-top:8px">Si le client a un VPN ou que vous êtes sur site avec un câble, ces ports sont généralement accessibles.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- VM Hyper-V -->
+      <div class="rappel-detail" id="rt-vm" style="display:none">
+        <div class="rappel-step">
+          <div class="rappel-num">1</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Préparation du template <span class="tool-badge windows">Une seule fois</span></div>
+            <div class="rappel-desc">VM Windows 10/11 sous Hyper-V — configurer puis prendre un snapshot propre.</div>
+            <div class="code-block"><span class="code-comment"># Désactiver Defender dans la VM</span>
+Set-MpPreference -DisableRealtimeMonitoring $true
+
+<span class="code-comment"># Créer le dossier outils et exclure</span>
+New-Item -ItemType Directory -Path "C:\AuditAD" -Force
+Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
+            <div class="rappel-desc" style="margin-top:8px">
+              Copier <strong>SharpHound.exe</strong> et <strong>PingCastle.exe</strong> dans <code style="font-family:monospace;color:var(--blue)">C:\AuditAD\</code>.
+              Prendre le snapshot <strong>avant</strong> toute jonction au domaine.
+            </div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">2</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Par mission</div>
+            <div class="code-block"><span class="code-comment"># Joindre la VM au domaine client</span>
+Add-Computer -DomainName "domaine.client.local" -Restart
+
+<span class="code-comment"># Après redémarrage</span>
+.\PingCastle.exe --healthcheck
+.\SharpHound.exe -c All --zipfilename Audit_Client.zip</div>
+            <div class="rappel-desc" style="margin-top:8px">Récupérer les fichiers via partage réseau, SCP ou clé USB.</div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">3</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Réinitialisation</div>
+            <div class="rappel-desc">Revenir au snapshot Hyper-V propre — la VM est immédiatement prête pour le client suivant, sans trace du domaine précédent.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gestion AV -->
+      <div class="rappel-detail" id="rt-av" style="display:none">
+        <div class="rappel-step">
+          <div class="rappel-num">1</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Windows Defender <span class="tool-badge windows">PowerShell admin</span></div>
+            <div class="code-block"><span class="code-comment"># Exclusion de dossier (persistante)</span>
+Add-MpPreference -ExclusionPath "C:\AuditAD"
+
+<span class="code-comment"># Désactivation temporaire (remettre après)</span>
+Set-MpPreference -DisableRealtimeMonitoring $true
+Set-MpPreference -DisableRealtimeMonitoring $false</div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">2</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">ESET PROTECT (console centrale)</div>
+            <div class="code-block"><span class="code-comment">Console ESET PROTECT</span>
+<span class="code-comment">→ Ordinateurs > [machine cible] > Gérer les politiques</span>
+<span class="code-comment">→ Antivirus > Exclusions > Ajouter chemin</span>
+<span class="code-comment">   Chemin : C:\AuditAD\*</span>
+<span class="code-comment">→ Appliquer — supprimer après la mission</span></div>
+            <div class="rappel-desc" style="margin-top:8px">
+              Détections SharpHound : <code style="font-family:monospace;color:var(--red)">MSIL/Riskware.SharpHound.H</code>,
+              <code style="font-family:monospace;color:var(--red)">MSIL/Riskware.SharpHound_AGen.AP</code>
+            </div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num">3</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Bitdefender GravityZone (console centrale)</div>
+            <div class="code-block"><span class="code-comment">GravityZone Console</span>
+<span class="code-comment">→ Politiques > [politique machine cible]</span>
+<span class="code-comment">→ Antimalware > Paramètres > Exclusions</span>
+<span class="code-comment">→ Ajouter dossier : C:\AuditAD</span>
+<span class="code-comment">→ Appliquer à la machine cible uniquement</span>
+<span class="code-comment">→ Supprimer l'exclusion après la mission</span></div>
+          </div>
+        </div>
+        <hr class="rappel-divider">
+        <div class="rappel-step">
+          <div class="rappel-num" style="background:var(--green)">!</div>
+          <div class="rappel-body">
+            <div class="rappel-tool">Alternative sans exclusion AV</div>
+            <div class="rappel-desc">
+              Si le client refuse ou si vous n'avez pas accès à la console AV :
+              utiliser <strong>bloodhound-python depuis Linux</strong> — aucun contact avec l'AV Windows du client.
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- #rappel-content -->
+  </div>
+</div>
+
+<!-- ── Modal : Nouveau client ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-new-client" onclick="closeModalOnOverlay(event,'modal-new-client')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div class="modal-title">Nouveau client</div>
+      <button class="modal-close" onclick="closeModal('modal-new-client')">x</button>
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>Nom affiche</label>
+      <input id="nc-name" type="text" placeholder="GI Informatique">
+    </div>
+    <div class="field" style="margin-bottom:4px">
+      <label>Slug</label>
+      <input id="nc-slug" type="text" placeholder="gi">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-blue" onclick="createClient()">Creer le client</button>
+    </div>
+    <div class="inline-status" id="nc-status"></div>
+  </div>
+</div>
+
+<!-- ── Modal : Actions client ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-client" onclick="closeModalOnOverlay(event,'modal-client')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-client-title">Actions</div>
+      <button class="modal-close" onclick="closeModal('modal-client')">x</button>
+    </div>
+
+    <!-- PingCastle -->
+    <div class="modal-section">
+      <div class="modal-section-title">Importer PingCastle</div>
+      <div class="field">
+        <label>Fichier HTML</label>
+        <input id="modal-pc-file" type="file" accept=".html,.htm">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-green btn-sm" onclick="modalUploadPingCastle()">Importer</button>
+      </div>
+      <div class="modal-status" id="modal-pc-status"></div>
+    </div>
+
+    <!-- SharpHound -->
+    <div class="modal-section">
+      <div class="modal-section-title">Importer SharpHound dans BloodHound</div>
+      <div class="bh-warning" id="modal-bh-warning" style="display:none">
+        BloodHound contient actuellement des donnees de
+        <strong id="modal-bh-other"></strong>.
+        Pensez a vider BloodHound avant d'importer pour eviter les melanges.
+      </div>
+      <div class="field">
+        <label>Archive ZIP</label>
+        <input id="modal-sh-file" type="file" accept=".zip">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-orange btn-sm" onclick="modalUploadSharpHound()">Importer</button>
+      </div>
+      <div class="modal-status" id="modal-sh-status"></div>
+    </div>
+
+    <!-- AD-Miner -->
+    <div class="modal-section">
+      <div class="modal-section-title">Generer rapport AD-Miner</div>
+      <p class="modal-hint">
+        Les donnees SharpHound doivent etre ingérees dans BloodHound avant de lancer la génération.
+      </p>
+      <button class="btn btn-orange btn-sm" onclick="modalGenerateAdMiner()">Generer AD-Miner</button>
+      <div class="modal-status" id="modal-am-status"></div>
+    </div>
+
+    <!-- Télécharger SharpHound source -->
+    <div class="modal-section">
+      <div class="modal-section-title">Télécharger source SharpHound</div>
+      <div id="modal-sh-dl-list"><span style="color:var(--dim);font-size:13px">Chargement...</span></div>
+    </div>
+
+    <!-- Zone dangereuse -->
+    <div class="modal-section danger">
+      <div class="modal-section-title">Zone dangereuse</div>
+      <p class="modal-hint">
+        Supprime definitivement tous les rapports et fichiers sources de ce client.
+      </p>
+      <button class="btn btn-red btn-sm" onclick="deleteClient()">Supprimer ce client</button>
+      <div class="modal-status" id="modal-del-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Scripts ──────────────────────────────────────────────────────────── -->
+<script>
+let audits = [];
+let bhStatus = {};
+let activeJobs = new Map();
+let pollIntervals = new Map();
+let modalSlug = null;
+let modalClientName = null;
+
+// ── Toasts ────────────────────────────────────────────────────────────────
+
+function showToast(title, msg, type = 'info', duration = 6000) {
+  const c = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `
+    <div class="toast-dot"></div>
+    <div class="toast-body">
+      <div class="toast-title">${esc(title)}</div>
+      ${msg ? `<div class="toast-msg">${esc(msg)}</div>` : ''}
+    </div>
+  `;
+  c.appendChild(el);
+  setTimeout(() => {
+    el.style.transition = 'opacity 0.4s';
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 400);
+  }, duration);
+}
+
+// ── Jobs ──────────────────────────────────────────────────────────────────
+
+function startJobPolling(jobId, label, onDone) {
+  activeJobs.set(jobId, { label, message: 'Démarrage...' });
+  updateJobsBar();
+  const iv = setInterval(async () => {
+    try {
+      const r = await fetch(`/api/jobs/${jobId}`);
+      if (!r.ok) { clearInterval(iv); return; }
+      const job = await r.json();
+      if (job.status === 'done') {
+        clearInterval(iv);
+        pollIntervals.delete(jobId);
+        activeJobs.delete(jobId);
+        updateJobsBar();
+        showToast('Termine', job.message, 'success');
+        await loadAll();
+        if (onDone) onDone(job);
+      } else if (job.status === 'error') {
+        clearInterval(iv);
+        pollIntervals.delete(jobId);
+        activeJobs.delete(jobId);
+        updateJobsBar();
+        showToast('Erreur', job.message, 'error', 10000);
+      } else {
+        activeJobs.set(jobId, { label, message: job.message });
+        updateJobsBar();
+      }
+    } catch (_) {}
+  }, 3000);
+  pollIntervals.set(jobId, iv);
+}
+
+function updateJobsBar() {
+  const bar = document.getElementById('jobs-bar');
+  if (activeJobs.size === 0) { bar.style.display = 'none'; return; }
+  bar.style.display = 'block';
+  bar.innerHTML = [...activeJobs.values()].map(j => `
+    <div class="job-item">
+      <div class="spinner"></div>
+      <span class="job-label">${esc(j.label)}</span>
+      <span class="job-msg">${esc(j.message)}</span>
+    </div>
+  `).join('');
+}
+
+// ── Status helpers ────────────────────────────────────────────────────────
+
+function setStatus(id, msg, type = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'inline-status' + (type ? ` ${type}` : '');
+  el.textContent = msg;
+}
+
+function setModalStatus(id, msg, type = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'modal-status' + (type ? ` ${type}` : '');
+  el.textContent = msg;
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────
+
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  if (id === 'modal-new-client') {
+    document.getElementById('nc-name').value = '';
+    document.getElementById('nc-slug').value = '';
+    setStatus('nc-status', '');
+  }
+  if (id === 'modal-client') { modalSlug = null; modalClientName = null; }
+  if (id === 'modal-rappel') { backToRappelMenu(); }
+}
+
+function closeModalOnOverlay(e, id) {
+  if (e.target === document.getElementById(id)) closeModal(id);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeModal('modal-client');
+    closeModal('modal-new-client');
+    closeModal('modal-rappel');
+  }
+});
+
+function openNewClientModal() { openModal('modal-new-client'); }
+
+function openClientModal(slug, name) {
+  modalSlug = slug;
+  modalClientName = name;
+  document.getElementById('modal-client-title').textContent = 'Actions — ' + name;
+  document.getElementById('modal-pc-file').value = '';
+  document.getElementById('modal-sh-file').value = '';
+  setModalStatus('modal-pc-status', '');
+  setModalStatus('modal-sh-status', '');
+  setModalStatus('modal-am-status', '');
+  setModalStatus('modal-del-status', '');
+
+  // Afficher un avertissement si BH a des données d'un autre client
+  const warn = document.getElementById('modal-bh-warning');
+  if (bhStatus.slug && bhStatus.slug !== slug && bhStatus.name) {
+    document.getElementById('modal-bh-other').textContent = bhStatus.name;
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
+
+  openModal('modal-client');
+  loadSharpHoundFiles(slug);
+}
+
+// ── Load data ─────────────────────────────────────────────────────────────
+
+async function loadAll() {
+  await Promise.all([loadAudits(), loadBhStatus()]);
+}
+
+async function loadAudits() {
+  try {
+    const r = await fetch('/api/audits');
+    audits = await r.json();
+    renderClients();
+    updateStats();
+  } catch (e) {
+    showToast('Erreur', 'Impossible de charger la liste des clients.', 'error');
+  }
+}
+
+async function loadBhStatus() {
+  try {
+    const r = await fetch('/api/bloodhound/status');
+    bhStatus = await r.json();
+    updateBhHeader();
+  } catch (_) {}
+}
+
+function updateBhHeader() {
+  const pill = document.getElementById('bh-header-pill');
+  const text = document.getElementById('bh-header-text');
+  if (bhStatus && bhStatus.slug) {
+    pill.className = 'bh-status-pill active';
+    text.textContent = bhStatus.name + ' — ' + (bhStatus.file || '?') + (bhStatus.imported_at ? ' (' + bhStatus.imported_at + ')' : '');
+  } else {
+    pill.className = 'bh-status-pill empty';
+    text.textContent = 'BloodHound vide';
+  }
+}
+
+function updateStats() {
+  const total = audits.length;
+  const pcCount = audits.filter(c => c.pingcastle.available).length;
+  const amCount = audits.filter(c => c.ad_miner.available).length;
+  document.getElementById('stat-clients').textContent = total;
+  document.getElementById('stat-pingcastle').textContent = pcCount + '/' + total;
+  document.getElementById('stat-adminer').textContent = amCount + '/' + total;
+}
+
+function renderClients() {
+  const container = document.getElementById('clients');
+  const filter = document.getElementById('search').value.toLowerCase();
+  const filtered = audits.filter(c =>
+    c.name.toLowerCase().includes(filter) || c.slug.toLowerCase().includes(filter)
+  );
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="empty-state">Aucun client trouve.</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(c => {
+    const amOk = c.ad_miner.available;
+    const pcOk = c.pingcastle.available;
+    const shDate = c.sources && c.sources.sharphound_date;
+    const shCount = c.sources && c.sources.sharphound_count;
+    const bh = c.bloodhound_active;
+
+    const bhBadge = bh && bhStatus.file ? `
+      <div class="bh-card-badge">
+        <div class="bh-card-badge-dot"></div>
+        <span class="bh-card-badge-text">BloodHound : ${esc(bhStatus.file)}</span>
+      </div>
+    ` : '';
+
+    const lastAudit = c.last_audit_at
+      ? `<div class="card-meta">Dernier audit : ${esc(c.last_audit_at)}</div>`
+      : '';
+
+    return `
+      <div class="client-card${bh ? ' bh-active' : ''}">
+        <div class="card-top">
+          <div class="card-name-block">
+            <div class="card-client-name">${esc(c.name)}</div>
+            <span class="slug-badge">${esc(c.slug)}</span>
+            ${bhBadge}
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="openClientModal('${esc(c.slug)}','${esc(c.name)}')">
+            Actions
+          </button>
+        </div>
+
+        <div class="card-indicators">
+          <div class="indicator">
+            <div class="dot ${amOk ? 'dot-green' : 'dot-gray'}"></div>
+            <span class="indicator-name">AD-Miner</span>
+            <span class="indicator-date">${amOk ? esc(c.ad_miner.date) : 'Absent'}</span>
+          </div>
+          <div class="indicator">
+            <div class="dot ${pcOk ? 'dot-green' : 'dot-gray'}"></div>
+            <span class="indicator-name">PingCastle</span>
+            <span class="indicator-date">${pcOk ? esc(c.pingcastle.date) : 'Absent'}</span>
+          </div>
+          <div class="indicator">
+            <div class="dot ${shDate ? 'dot-orange' : 'dot-gray'}"></div>
+            <span class="indicator-name">SharpHound source</span>
+            <span class="indicator-date">${shDate ? esc(shDate) + (shCount > 1 ? ' (' + shCount + ' fichiers)' : '') : 'Aucun'}</span>
+          </div>
+        </div>
+
+        ${lastAudit}
+
+        <div class="card-btns">
+          ${amOk
+            ? `<a class="btn btn-blue btn-sm" href="${c.ad_miner.url}" target="_blank">Rapport AD-Miner</a>`
+            : `<button class="btn btn-ghost btn-sm" disabled>AD-Miner absent</button>`
+          }
+          ${pcOk
+            ? `<a class="btn btn-green btn-sm" href="${c.pingcastle.url}" target="_blank">Rapport PingCastle</a>`
+            : `<button class="btn btn-ghost btn-sm" disabled>PingCastle absent</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function esc(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Actions globales ──────────────────────────────────────────────────────
+
+async function resetBloodHound() {
+  if (!confirm('Vider BloodHound ? Cette action supprime toutes les données du graphe.')) return;
+  setStatus('bh-status', 'Reinitialisation en cours...', 'info');
+  try {
+    const r = await fetch('/api/bloodhound/reset', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) { setStatus('bh-status', d.detail, 'error'); showToast('Erreur', d.detail, 'error'); return; }
+    setStatus('bh-status', d.message, 'success');
+    showToast('BloodHound reinitialise', d.message, 'success');
+    await loadBhStatus();
+  } catch (e) {
+    setStatus('bh-status', String(e), 'error');
+  }
+}
+
+async function createFullAudit() {
+  const name = document.getElementById('fa-name').value.trim();
+  const slug = document.getElementById('fa-slug').value.trim();
+  const pcFile = document.getElementById('fa-pingcastle');
+  const shFile = document.getElementById('fa-sharphound');
+
+  if (!name || !slug) { setStatus('fa-status', 'Nom et slug obligatoires.', 'error'); return; }
+  if (!pcFile.files.length) { setStatus('fa-status', 'Rapport PingCastle obligatoire.', 'error'); return; }
+  if (!shFile.files.length) { setStatus('fa-status', 'ZIP SharpHound obligatoire.', 'error'); return; }
+
+  if (!confirm(`Lancer l'audit complet pour « ${name} » ?\n\nPre-requis : avoir vide BloodHound si necessaire.`)) return;
+
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('slug', slug);
+  fd.append('pingcastle_report', pcFile.files[0]);
+  fd.append('sharphound_zip', shFile.files[0]);
+
+  setStatus('fa-status', 'Envoi des fichiers...', 'info');
+  try {
+    const r = await fetch('/api/audits/full', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { setStatus('fa-status', d.detail, 'error'); return; }
+    setStatus('fa-status', 'Audit lance — progression en cours...', 'info');
+    document.getElementById('fa-name').value = '';
+    document.getElementById('fa-slug').value = '';
+    pcFile.value = '';
+    shFile.value = '';
+    startJobPolling(d.job_id, `Audit complet — ${name}`, () => setStatus('fa-status', 'Audit termine.', 'success'));
+    showToast('Audit lance', `L'audit pour ${name} tourne en arriere-plan.`, 'info');
+  } catch (e) {
+    setStatus('fa-status', String(e), 'error');
+  }
+}
+
+async function createClient() {
+  const name = document.getElementById('nc-name').value.trim();
+  const slug = document.getElementById('nc-slug').value.trim();
+  if (!name || !slug) { setStatus('nc-status', 'Nom et slug obligatoires.', 'error'); return; }
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('slug', slug);
+  setStatus('nc-status', 'Creation...', 'info');
+  try {
+    const r = await fetch('/api/clients', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { setStatus('nc-status', d.detail, 'error'); return; }
+    setStatus('nc-status', d.message, 'success');
+    showToast('Client cree', d.message, 'success');
+    document.getElementById('nc-name').value = '';
+    document.getElementById('nc-slug').value = '';
+    await loadAudits();
+  } catch (e) {
+    setStatus('nc-status', String(e), 'error');
+  }
+}
+
+// ── Actions par client (modal) ────────────────────────────────────────────
+
+async function modalUploadPingCastle() {
+  if (!modalSlug) return;
+  const file = document.getElementById('modal-pc-file');
+  if (!file.files.length) { setModalStatus('modal-pc-status', 'Aucun fichier selectionne.', 'error'); return; }
+  const fd = new FormData();
+  fd.append('report', file.files[0]);
+  setModalStatus('modal-pc-status', 'Import en cours...', 'info');
+  try {
+    const r = await fetch(`/api/clients/${modalSlug}/pingcastle`, { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { setModalStatus('modal-pc-status', d.detail, 'error'); return; }
+    setModalStatus('modal-pc-status', d.message, 'success');
+    showToast('PingCastle importe', d.message, 'success');
+    file.value = '';
+    await loadAudits();
+  } catch (e) {
+    setModalStatus('modal-pc-status', String(e), 'error');
+  }
+}
+
+async function modalUploadSharpHound() {
+  if (!modalSlug) return;
+  const file = document.getElementById('modal-sh-file');
+  if (!file.files.length) { setModalStatus('modal-sh-status', 'Aucun fichier selectionne.', 'error'); return; }
+  const fd = new FormData();
+  fd.append('zip_file', file.files[0]);
+  setModalStatus('modal-sh-status', 'Upload vers BloodHound...', 'info');
+  try {
+    const r = await fetch(`/api/clients/${modalSlug}/sharphound`, { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { setModalStatus('modal-sh-status', d.detail, 'error'); return; }
+    setModalStatus('modal-sh-status', d.message, 'success');
+    showToast('SharpHound importe', d.message, 'success');
+    file.value = '';
+    await loadAll();
+    // Rafraichir l'avertissement BH dans la modale
+    const warn = document.getElementById('modal-bh-warning');
+    warn.style.display = 'none'; // Plus de conflit après l'import
+  } catch (e) {
+    setModalStatus('modal-sh-status', String(e), 'error');
+  }
+}
+
+async function modalGenerateAdMiner() {
+  if (!modalSlug) return;
+  if (!confirm(`Generer AD-Miner pour « ${modalSlug} » ?\nLe ZIP SharpHound doit etre ingere dans BloodHound.`)) return;
+  setModalStatus('modal-am-status', 'Generation lancee...', 'info');
+  try {
+    const r = await fetch(`/api/clients/${modalSlug}/ad-miner/generate`, { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) { setModalStatus('modal-am-status', d.detail, 'error'); return; }
+    startJobPolling(d.job_id, `AD-Miner — ${modalSlug}`, () => setModalStatus('modal-am-status', 'Rapport genere.', 'success'));
+    setModalStatus('modal-am-status', 'En cours (suivi dans la barre de progression)...', 'info');
+    showToast('AD-Miner lance', `Generation en cours pour ${modalSlug}.`, 'info');
+  } catch (e) {
+    setModalStatus('modal-am-status', String(e), 'error');
+  }
+}
+
+async function loadSharpHoundFiles(slug) {
+  const el = document.getElementById('modal-sh-dl-list');
+  el.innerHTML = '<span style="color:var(--dim);font-size:13px">Chargement...</span>';
+  try {
+    const r = await fetch(`/api/clients/${slug}/sharphound/files`);
+    const files = await r.json();
+    if (!files.length) {
+      el.innerHTML = '<span style="color:var(--dim);font-size:13px">Aucune source archivée.</span>';
+      return;
+    }
+    el.innerHTML = files.map(f => `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(f.filename)}</div>
+          <div style="font-size:12px;color:var(--dim)">${esc(f.date)} — ${(f.size/1024/1024).toFixed(1)} Mo</div>
+        </div>
+        <a class="btn btn-blue btn-sm"
+           href="/api/clients/${esc(slug)}/sharphound/download/${esc(f.filename)}"
+           download="${esc(f.filename)}">
+          Télécharger
+        </a>
+      </div>
+    `).join('');
+  } catch (e) {
+    el.innerHTML = `<span style="color:var(--red);font-size:13px">Erreur : ${esc(String(e))}</span>`;
+  }
+}
+
+async function deleteClient() {
+  if (!confirm(`Supprimer définitivement le client "${modalClientName}" ? Cette action est irréversible.`)) return;
+  if (!modalSlug) return;
+  const name = modalClientName || modalSlug;
+  if (!confirm(`Supprimer definitivement le client « ${name} » ?\n\nTous les rapports et fichiers sources seront effaces. Cette action est irreversible.`)) return;
+  setModalStatus('modal-del-status', 'Suppression...', 'info');
+  try {
+    const r = await fetch(`/api/clients/${modalSlug}`, { method: 'DELETE' });
+    const d = await r.json();
+    if (!r.ok) { setModalStatus('modal-del-status', d.detail, 'error'); return; }
+    showToast('Client supprime', d.message, 'info');
+    closeModal('modal-client');
+    await loadAll();
+  } catch (e) {
+    setModalStatus('modal-del-status', String(e), 'error');
+  }
+}
+
+// ── Rappel navigation ─────────────────────────────────────────────────────
+
+function showRappel(id, title) {
+  document.querySelectorAll('.rappel-detail').forEach(d => d.style.display = 'none');
+  document.getElementById(id).style.display = 'block';
+  document.getElementById('rappel-content-title').textContent = title;
+  document.getElementById('rappel-menu').style.display = 'none';
+  document.getElementById('rappel-content').style.display = 'block';
+}
+
+function backToRappelMenu() {
+  document.getElementById('rappel-content').style.display = 'none';
+  document.getElementById('rappel-menu').style.display = 'block';
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+
+document.getElementById('search').addEventListener('input', renderClients);
+
+loadAll();
+
+// Rafraichissement auto toutes les 30 secondes
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>

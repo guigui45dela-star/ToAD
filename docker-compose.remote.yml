@@ -1,0 +1,24 @@
+services:
+  toad-web:
+    build: .
+    container_name: toad-web
+    restart: unless-stopped
+    ports:
+      - "${TOAD_PORT:-9100}:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      TZ: "${TZ:-Europe/Paris}"
+      BLOODHOUND_URL: "${BLOODHOUND_URL:?BLOODHOUND_URL is required for remote mode}"
+      BLOODHOUND_USERNAME: "${BLOODHOUND_USERNAME:?BLOODHOUND_USERNAME is required}"
+      BLOODHOUND_PASSWORD: "${BLOODHOUND_PASSWORD:?BLOODHOUND_PASSWORD is required}"
+      NEO4J_URL: "${NEO4J_URL:?NEO4J_URL is required for remote mode}"
+      NEO4J_USER: "${NEO4J_USER:?NEO4J_USER is required}"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}"
+      INGEST_WAIT_SECONDS: "${INGEST_WAIT_SECONDS:-30}"
+      BLOODHOUND_MODE: "remote"
+    volumes:
+      - ./clients:/data:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
