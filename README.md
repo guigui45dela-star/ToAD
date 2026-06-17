@@ -31,7 +31,6 @@
 - [Sécurité](#-sécurité)
 - [Documentation](#-documentation)
 - [Contribuer](#-contribuer)
-- [Roadmap](#-roadmap)
 - [Support](#-support)
 - [Licence](#-licence)
 - [Remerciements](#-remerciements)
@@ -110,17 +109,6 @@ Pour plus de détails, consultez le [Guide d'installation complet](docs/installa
    - Importer PingCastle séparément
    - Importer SharpHound séparément
    - Générer AD-Miner séparément
-
-## 📸 Screenshots
-
-### Dashboard principal
-![Dashboard](docs/screenshots/dashboard.png)
-
-### Actions client
-![Client Actions](docs/screenshots/client-actions.png)
-
-### Modal de rappel
-![Rappel](docs/screenshots/rappel-modal.png)
 
 ## 🏗️ Architecture
 
@@ -292,26 +280,6 @@ Les contributions sont les bienvenues ! Consultez [CONTRIBUTING.md](CONTRIBUTING
 - 🧪 **Tests** - Ajouter des tests automatisés
 
 Merci à tous les contributeurs ! 🙏
-
-## 🗺️ Roadmap
-
-### Version 1.1 (Q3 2026)
-- [ ] Authentification intégrée (JWT/OAuth)
-- [ ] Support PDF pour rapports
-- [ ] Tags et catégories
-
-### Version 1.2 (Q4 2026)
-- [ ] Comparaison inter-audits
-- [ ] API REST documentée (OpenAPI)
-- [ ] Notifications (Slack, Teams)
-
-### Version 2.0 (2027)
-- [ ] Plugin system pour nouveaux outils
-- [ ] Support Azure AD / Entra ID
-- [ ] Multi-utilisateurs avec rôles
-- [ ] Dashboard comparatif multi-clients
-
-Consultez les [Issues GitHub](https://github.com/guigui45dela-star/ToAD/issues) pour voir toutes les fonctionnalités planifiées.
 
 ## 📄 Licence
 
