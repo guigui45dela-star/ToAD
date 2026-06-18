@@ -191,32 +191,76 @@ INGEST_WAIT_SECONDS=120  # pour les gros fichiers
 
 ## 🔒 Sécurité
 
-### Bonnes pratiques
+ToAD inclut des fonctionnalités de sécurité intégrées pour protéger vos données sensibles :
 
-1. **Changez les mots de passe par défaut** dans `.env`
-2. **N'exposez pas les ports publiquement** sans authentification
-3. **Utilisez un reverse proxy** (nginx, Traefik) avec HTTPS
-4. **Activez l'authentification** (voir docs/security.md)
-5. **Restreignez l'accès réseau** via firewall (iptables/ufw)
+### Fonctionnalités de Sécurité Intégrées
 
-### Authentification
+- ✅ **Authentification par token API** - Protection de tous les endpoints API
+- ✅ **Rate limiting** - 120 requêtes/minute/IP pour prévenir les abus
+- ✅ **Headers de sécurité** - CSP, X-Frame-Options, X-Content-Type-Options, etc.
+- ✅ **Validation des entrées** - Vérification MIME et magic bytes pour les uploads
+- ✅ **Logging détaillé** - Traçabilité complète des actions
+- ✅ **Nettoyage automatique** - Suppression des anciens fichiers SharpHound
 
-ToAD n'inclut pas d'authentification native par défaut. Options :
+### Configuration Sécurisée
 
-**Option 1 : Basic Auth via nginx** (recommandé)
-```nginx
-location / {
-    auth_basic "ToAD Access";
-    auth_basic_user_file /etc/nginx/.htpasswd;
-    proxy_pass http://localhost:9100;
-}
+**⚠️ Important :** Suivez impérativement ces étapes avant la mise en production :
+
+1. **Générez des mots de passe sécurisés**
+   ```bash
+   # Mots de passe BloodHound et Neo4j
+   BLOODHOUND_PASSWORD=$(openssl rand -base64 32)
+   NEO4J_PASSWORD=$(openssl rand -base64 32)
+   
+   # Token API (obligatoire)
+   API_TOKEN=$(openssl rand -hex 32)
+   ```
+
+2. **Configurez le fichier `.env`**
+   ```bash
+   cp .env.example .env
+   chmod 600 .env
+   nano .env  # Ajoutez vos valeurs sécurisées
+   ```
+
+3. **Utilisez un reverse proxy avec HTTPS**
+   - Nginx ou Traefik avec Let's Encrypt
+   - Ne jamais exposer ToAD directement sur Internet
+
+4. **Configurez un firewall restrictif**
+   ```bash
+   # Exemple avec UFW
+   ufw allow 22/tcp   # SSH
+   ufw allow 80/tcp   # HTTP (redirect vers HTTPS)
+   ufw allow 443/tcp  # HTTPS
+   ufw enable
+   ```
+
+### Utilisation de l'API avec Token
+
+```bash
+# Ajouter le token dans le header Authorization
+curl -H "Authorization: Bearer $API_TOKEN" \
+  http://localhost:9100/api/audits
 ```
 
-**Option 2 : Accès VPN uniquement**
-- Déployer ToAD derrière un VPN (WireGuard, OpenVPN)
-- Restreindre l'accès aux utilisateurs VPN
+### Documentation Sécurité
 
-Voir [docs/security.md](docs/security.md) pour plus de détails.
+- 📖 [Guide de Configuration Sécurisée](docs/security-configuration.md) - Configuration détaillée
+- 🚀 [Guide de Déploiement Sécurisé](docs/deployment-security.md) - Déploiement en production
+- 🛡️ [Politique de Sécurité](SECURITY.md) - Signaler une vulnérabilité
+- 🔍 [Audit de Sécurité](SECURITY_AUDIT.md) - Rapport d'audit complet
+
+### Bonnes Pratiques
+
+- ✅ Changez les mots de passe par défaut
+- ✅ Utilisez HTTPS uniquement
+- ✅ Rotations régulières des tokens (tous les 90 jours)
+- ✅ Backup régulier des données
+- ✅ Monitoring des accès et des logs
+- ✅ Gardez ToAD à jour
+
+⚠️ **Ne déployez jamais ToAD en production sans suivre le [Guide de Déploiement Sécurisé](docs/deployment-security.md).**
 
 ## 📚 Documentation
 
