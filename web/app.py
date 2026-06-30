@@ -359,6 +359,82 @@ def save_config(config: dict):
     )
 
 
+class SystemSettings(BaseModel):
+    bloodhound_url: Optional[str] = None
+    bloodhound_mode: Optional[str] = None
+    ingest_wait_seconds: Optional[int] = None
+    jwt_expiration_hours: Optional[int] = None
+    rate_limit_max: Optional[int] = None
+    rate_limit_window: Optional[int] = None
+    max_pingcastle_size: Optional[int] = None
+    max_sharphound_size: Optional[int] = None
+    timezone: Optional[str] = None
+    log_level: Optional[str] = None
+
+
+@app.get("/api/settings")
+def get_settings(admin: dict = Depends(require_role("admin"))):
+    config = get_config()
+    return {
+        "bloodhound_url": config.get("bloodhound_url", BLOODHOUND_URL),
+        "bloodhound_mode": config.get("bloodhound_mode", BLOODHOUND_MODE),
+        "ingest_wait_seconds": config.get("ingest_wait_seconds", INGEST_WAIT_SECONDS),
+        "jwt_expiration_hours": config.get("jwt_expiration_hours", JWT_EXPIRATION_HOURS),
+        "rate_limit_max": config.get("rate_limit_max", RATE_LIMIT_MAX),
+        "rate_limit_window": config.get("rate_limit_window", RATE_LIMIT_WINDOW),
+        "max_pingcastle_size": config.get("max_pingcastle_size", MAX_PINGCASTLE_SIZE),
+        "max_sharphound_size": config.get("max_sharphound_size", MAX_SHARPHOUND_SIZE),
+        "timezone": config.get("timezone", os.getenv("TZ", "Europe/Paris")),
+        "log_level": config.get("log_level", "INFO"),
+    }
+
+
+@app.put("/api/settings")
+def update_settings(settings: SystemSettings, admin: dict = Depends(require_role("admin"))):
+    config = get_config()
+    
+    if settings.bloodhound_url is not None:
+        config["bloodhound_url"] = settings.bloodhound_url
+    if settings.bloodhound_mode is not None:
+        if settings.bloodhound_mode not in ["local", "remote"]:
+            raise HTTPException(status_code=400, detail="Mode BloodHound invalide")
+        config["bloodhound_mode"] = settings.bloodhound_mode
+    if settings.ingest_wait_seconds is not None:
+        if settings.ingest_wait_seconds < 5 or settings.ingest_wait_seconds > 600:
+            raise HTTPException(status_code=400, detail="Timeout ingestion doit être entre 5 et 600 secondes")
+        config["ingest_wait_seconds"] = settings.ingest_wait_seconds
+    if settings.jwt_expiration_hours is not None:
+        if settings.jwt_expiration_hours < 1 or settings.jwt_expiration_hours > 720:
+            raise HTTPException(status_code=400, detail="Expiration JWT doit être entre 1 et 720 heures")
+        config["jwt_expiration_hours"] = settings.jwt_expiration_hours
+    if settings.rate_limit_max is not None:
+        if settings.rate_limit_max < 10 or settings.rate_limit_max > 10000:
+            raise HTTPException(status_code=400, detail="Rate limit max doit être entre 10 et 10000")
+        config["rate_limit_max"] = settings.rate_limit_max
+    if settings.rate_limit_window is not None:
+        if settings.rate_limit_window < 10 or settings.rate_limit_window > 3600:
+            raise HTTPException(status_code=400, detail="Rate limit window doit être entre 10 et 3600 secondes")
+        config["rate_limit_window"] = settings.rate_limit_window
+    if settings.max_pingcastle_size is not None:
+        if settings.max_pingcastle_size < 1048576 or settings.max_pingcastle_size > 524288000:
+            raise HTTPException(status_code=400, detail="Taille max PingCastle doit être entre 1 Mo et 500 Mo")
+        config["max_pingcastle_size"] = settings.max_pingcastle_size
+    if settings.max_sharphound_size is not None:
+        if settings.max_sharphound_size < 10485760 or settings.max_sharphound_size > 5242880000:
+            raise HTTPException(status_code=400, detail="Taille max SharpHound doit être entre 10 Mo et 5 Go")
+        config["max_sharphound_size"] = settings.max_sharphound_size
+    if settings.timezone is not None:
+        config["timezone"] = settings.timezone
+    if settings.log_level is not None:
+        if settings.log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+            raise HTTPException(status_code=400, detail="Niveau de log invalide")
+        config["log_level"] = settings.log_level
+    
+    save_config(config)
+    log_event("_system", "settings_updated")
+    return {"status": "ok", "message": "Paramètres mis à jour. Certains changements nécessitent un redémarrage."}
+
+
 # ─── Job system ───────────────────────────────────────────────────────────────
 
 _jobs: dict = {}

@@ -1300,8 +1300,8 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
 
     <div class="modal-section">
       <div class="modal-section-title">Paramètres système</div>
-      <p class="modal-hint">Configuration globale de la plateforme (à venir)</p>
-      <button class="btn btn-ghost btn-sm" disabled>Bientôt disponible</button>
+      <p class="modal-hint">Configuration globale de la plateforme</p>
+      <button class="btn btn-blue btn-sm" onclick="openSettingsModal()">Configurer</button>
     </div>
   </div>
 </div>
@@ -1392,6 +1392,95 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
       <button class="btn btn-blue btn-sm" onclick="changeOwnPassword()">Changer le mot de passe</button>
       <div class="modal-status" id="profile-password-status"></div>
     </div>
+  </div>
+</div>
+
+<!-- ── Modal : Paramètres système ──────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-settings" onclick="closeModalOnOverlay(event,'modal-settings')">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <div class="modal-title">Paramètres système</div>
+      <button class="modal-close" onclick="closeModal('modal-settings')">x</button>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">BloodHound</div>
+      <div class="field" style="margin-bottom:14px">
+        <label>URL de l'API BloodHound</label>
+        <input id="set-bh-url" type="text" placeholder="http://host.docker.internal:8080">
+        <div class="form-hint">URL complète de l'API BloodHound CE</div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Mode</label>
+        <select id="set-bh-mode">
+          <option value="local">Local (BloodHound dans le même Docker Compose)</option>
+          <option value="remote">Remote (BloodHound externe)</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Timeout ingestion (secondes)</label>
+        <input id="set-ingest-timeout" type="number" min="5" max="600" placeholder="30">
+        <div class="form-hint">Temps d'attente max pour l'ingestion SharpHound dans BloodHound</div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Sécurité</div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Expiration des tokens JWT (heures)</label>
+        <input id="set-jwt-exp" type="number" min="1" max="720" placeholder="24">
+        <div class="form-hint">Durée de validité des sessions utilisateur</div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Rate limit - Max requêtes</label>
+        <input id="set-rate-max" type="number" min="10" max="10000" placeholder="120">
+        <div class="form-hint">Nombre max de requêtes par IP dans la fenêtre de temps</div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Rate limit - Fenêtre (secondes)</label>
+        <input id="set-rate-window" type="number" min="10" max="3600" placeholder="60">
+        <div class="form-hint">Fenêtre de temps pour le rate limiting</div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Tailles max des uploads</div>
+      <div class="field" style="margin-bottom:14px">
+        <label>PingCastle (octets)</label>
+        <input id="set-max-pc" type="number" min="1048576" max="524288000" placeholder="52428800">
+        <div class="form-hint">Taille max des rapports PingCastle (défaut: 50 Mo)</div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>SharpHound (octets)</label>
+        <input id="set-max-sh" type="number" min="10485760" max="5242880000" placeholder="524288000">
+        <div class="form-hint">Taille max des ZIPs SharpHound (défaut: 500 Mo)</div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Système</div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Fuseau horaire</label>
+        <input id="set-timezone" type="text" placeholder="Europe/Paris">
+        <div class="form-hint">Fuseau horaire pour les logs et affichages</div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Niveau de log</label>
+        <select id="set-log-level">
+          <option value="DEBUG">Debug</option>
+          <option value="INFO">Info</option>
+          <option value="WARNING">Warning</option>
+          <option value="ERROR">Error</option>
+          <option value="CRITICAL">Critical</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-settings')">Annuler</button>
+      <button class="btn btn-blue" onclick="saveSettings()">Enregistrer</button>
+    </div>
+    <div class="modal-status" id="settings-status"></div>
   </div>
 </div>
 
@@ -2230,6 +2319,77 @@ async function refreshCurrentUser() {
     }
   } catch (e) {
     console.warn('Failed to refresh user', e);
+  }
+}
+
+// ── Paramètres système ────────────────────────────────────────────────────
+
+async function openSettingsModal() {
+  openModal('modal-settings');
+  await loadSettings();
+}
+
+async function loadSettings() {
+  setModalStatus('settings-status', 'Chargement...', 'info');
+  try {
+    const r = await authFetch('/api/settings');
+    if (!r.ok) { setModalStatus('settings-status', 'Erreur de chargement', 'error'); return; }
+    const settings = await r.json();
+    
+    document.getElementById('set-bh-url').value = settings.bloodhound_url || '';
+    document.getElementById('set-bh-mode').value = settings.bloodhound_mode || 'local';
+    document.getElementById('set-ingest-timeout').value = settings.ingest_wait_seconds || 30;
+    document.getElementById('set-jwt-exp').value = settings.jwt_expiration_hours || 24;
+    document.getElementById('set-rate-max').value = settings.rate_limit_max || 120;
+    document.getElementById('set-rate-window').value = settings.rate_limit_window || 60;
+    document.getElementById('set-max-pc').value = settings.max_pingcastle_size || 52428800;
+    document.getElementById('set-max-sh').value = settings.max_sharphound_size || 524288000;
+    document.getElementById('set-timezone').value = settings.timezone || 'Europe/Paris';
+    document.getElementById('set-log-level').value = settings.log_level || 'INFO';
+    
+    setModalStatus('settings-status', '', '');
+  } catch (e) {
+    setModalStatus('settings-status', 'Erreur: ' + String(e), 'error');
+  }
+}
+
+async function saveSettings() {
+  setModalStatus('settings-status', 'Enregistrement...', 'info');
+  
+  const settings = {
+    bloodhound_url: document.getElementById('set-bh-url').value.trim() || null,
+    bloodhound_mode: document.getElementById('set-bh-mode').value,
+    ingest_wait_seconds: parseInt(document.getElementById('set-ingest-timeout').value) || null,
+    jwt_expiration_hours: parseInt(document.getElementById('set-jwt-exp').value) || null,
+    rate_limit_max: parseInt(document.getElementById('set-rate-max').value) || null,
+    rate_limit_window: parseInt(document.getElementById('set-rate-window').value) || null,
+    max_pingcastle_size: parseInt(document.getElementById('set-max-pc').value) || null,
+    max_sharphound_size: parseInt(document.getElementById('set-max-sh').value) || null,
+    timezone: document.getElementById('set-timezone').value.trim() || null,
+    log_level: document.getElementById('set-log-level').value,
+  };
+  
+  try {
+    const r = await authFetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    
+    if (!r.ok) {
+      const d = await r.json();
+      setModalStatus('settings-status', d.detail || 'Erreur', 'error');
+      return;
+    }
+    
+    setModalStatus('settings-status', 'Paramètres enregistrés. Certains changements nécessitent un redémarrage.', 'success');
+    showToast('Paramètres enregistrés', 'Configuration mise à jour.', 'success');
+    
+    setTimeout(() => {
+      closeModal('modal-settings');
+    }, 2000);
+  } catch (e) {
+    setModalStatus('settings-status', 'Erreur: ' + String(e), 'error');
   }
 }
 
