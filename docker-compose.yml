@@ -17,6 +17,11 @@ services:
       NEO4J_PASSWORD: "${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}"
       INGEST_WAIT_SECONDS: "${INGEST_WAIT_SECONDS:-30}"
       BLOODHOUND_MODE: "${BLOODHOUND_MODE:-local}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
+      JWT_EXPIRATION_HOURS: "${JWT_EXPIRATION_HOURS:-24}"
+      ADMIN_DEFAULT_PASSWORD: "${ADMIN_DEFAULT_PASSWORD:-}"
+      ADMIN_DEFAULT_USERNAME: "${ADMIN_DEFAULT_USERNAME:-admin}"
+      API_TOKEN: "${API_TOKEN:-}"
     volumes:
       - ./clients:/data:rw
       - /var/run/docker.sock:/var/run/docker.sock

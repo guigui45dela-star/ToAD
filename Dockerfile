@@ -21,7 +21,10 @@ RUN pip install --no-cache-dir \
     uvicorn[standard]==0.32.0 \
     python-multipart==0.0.12 \
     requests==2.32.3 \
-    pyyaml==6.0.2
+    pyyaml==6.0.2 \
+    PyJWT[crypto]==2.9.0 \
+    bcrypt==4.1.3 \
+    pydantic==2.9.2
 
 # Copy application files
 COPY web/app.py /app/app.py

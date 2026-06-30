@@ -262,7 +262,13 @@ label {
 
 input[type="text"],
 input[type="search"],
-select {
+input[type="password"],
+input[type="number"],
+input[type="email"],
+input[type="url"],
+input[type="tel"],
+select,
+textarea {
   width: 100%;
   background: var(--card-alt);
   border: 1px solid var(--border);
@@ -272,14 +278,22 @@ select {
   font-size: 14px;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
 }
 input[type="text"]:focus,
 input[type="search"]:focus,
-select:focus {
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="url"]:focus,
+input[type="tel"]:focus,
+select:focus,
+textarea:focus {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(77,159,255,0.15);
 }
-input::placeholder { color: var(--dim); }
+input::placeholder,
+textarea::placeholder { color: var(--dim); }
 select option { background: var(--card); color: var(--text); }
 
 input[type="file"] {
@@ -291,9 +305,28 @@ input[type="file"] {
   color: var(--muted);
   font-size: 13px;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, color 0.15s;
+  font-family: inherit;
 }
-input[type="file"]:hover { border-color: var(--blue); color: var(--text); }
+input[type="file"]:hover { 
+  border-color: var(--blue); 
+  color: var(--text); 
+}
+input[type="file"]::file-selector-button {
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 10px;
+  transition: background 0.15s;
+}
+input[type="file"]::file-selector-button:hover {
+  background: var(--blue-h);
+}
 
 /* ── Buttons ── */
 .btn {
@@ -576,6 +609,104 @@ input[type="file"]:hover { border-color: var(--blue); color: var(--text); }
   .search-input { width: 100%; }
 }
 
+/* Login overlay */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.login-overlay.hidden { display: none; }
+
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.login-logo {
+  width: 64px; height: 64px;
+  border-radius: 16px;
+  margin: 0 auto 20px;
+  overflow: hidden;
+}
+.login-logo img { width: 100%; height: 100%; object-fit: contain; }
+.login-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+.login-sub { font-size: 14px; color: var(--muted); margin-bottom: 28px; }
+.login-field { margin-bottom: 16px; text-align: left; }
+.login-field label {
+  display: block; font-size: 12px; font-weight: 700;
+  color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.06em; margin-bottom: 6px;
+}
+.login-field input {
+  width: 100%;
+  background: var(--card-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+.login-field input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(77,159,255,0.15);
+}
+.login-error {
+  background: rgba(255,82,82,0.1);
+  border: 1px solid rgba(255,82,82,0.3);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--red);
+  margin-bottom: 16px;
+  display: none;
+}
+.login-error.visible { display: block; }
+.login-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.login-btn:hover { background: var(--blue-h); }
+.login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.user-badge strong { color: var(--text); }
+.btn-logout {
+  background: transparent;
+  border: 1px solid var(--border-hi);
+  color: var(--muted);
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-logout:hover { background: var(--card-alt); color: var(--text); border-color: var(--red); }
+
 hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 
 /* ── Modal rappel ── */
@@ -690,9 +821,281 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 }
 
 .rappel-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+/* ── Administration ─────────────────────────────────────────────────────── */
+.admin-btn {
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: none;
+}
+.admin-btn:hover { background: var(--blue-h); }
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--card-alt);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.user-avatar:hover {
+  border-color: var(--blue);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+.admin-table th,
+.admin-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.admin-table th {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.admin-table tr:hover {
+  background: var(--card-alt);
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.role-badge.admin {
+  background: rgba(255,82,82,0.18);
+  color: var(--red);
+}
+.role-badge.user {
+  background: rgba(77,159,255,0.18);
+  color: var(--blue);
+}
+.role-badge.viewer {
+  background: rgba(138,170,208,0.18);
+  color: var(--muted);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.status-dot.active {
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(45,214,110,0.6);
+}
+.status-dot.inactive {
+  background: var(--dim);
+}
+
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.avatar-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--card-alt);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--muted);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── Tags ─────────────────────────────────────────────────────────────── */
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.tag-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tag-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.tag-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  transition: all 0.15s;
+}
+.tag-filter-btn:hover {
+  border-color: var(--border-hi);
+  color: var(--text);
+}
+.tag-filter-btn.active {
+  border-color: var(--blue);
+  background: rgba(77,159,255,0.12);
+  color: var(--blue);
+}
+.tag-filter-btn .tag-filter-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tags-admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.tags-admin-table th,
+.tags-admin-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.tags-admin-table th {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.tags-admin-table tr:hover {
+  background: var(--card-alt);
+}
+.color-preview {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  display: inline-block;
+  vertical-align: middle;
+}
+.tag-form-row {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+.tag-form-row .field { flex: 1; }
+input[type="color"] {
+  width: 50px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card-alt);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.tag-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.15s;
+  user-select: none;
+}
+.tag-toggle:hover {
+  opacity: 0.85;
+}
+.tag-toggle.selected {
+  border-color: currentColor;
+  box-shadow: 0 0 0 1px currentColor;
+}
+.tag-toggle-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 </style>
 </head>
 <body>
+
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <div class="login-logo"><img src="/assets/logo.png" alt="ToAD"></div>
+    <div class="login-title">ToAD</div>
+    <div class="login-sub">Connexion requise</div>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-field">
+      <label>Identifiant</label>
+      <input type="text" id="login-username" placeholder="admin" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>Mot de passe</label>
+      <input type="password" id="login-password" placeholder="Mot de passe" autocomplete="current-password">
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Se connecter</button>
+  </div>
+</div>
 
 <!-- ── Header ──────────────────────────────────────────────────────────── -->
 <header class="header">
@@ -711,6 +1114,12 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
     <div class="stat-pill"><span>Clients</span><strong id="stat-clients">—</strong></div>
     <div class="stat-pill"><span>PingCastle</span><strong id="stat-pingcastle">—</strong></div>
     <div class="stat-pill"><span>AD-Miner</span><strong id="stat-adminer">—</strong></div>
+    <div class="user-badge" id="user-badge" style="display:none">
+      <div class="user-avatar" id="user-avatar" onclick="openProfileModal()" title="Mon profil"></div>
+      <strong id="user-name"></strong>
+      <button class="btn-logout" onclick="doLogout()">Deconnexion</button>
+    </div>
+    <button class="admin-btn" id="admin-btn" onclick="openAdminModal()">Administration</button>
     <button class="btn btn-ghost btn-sm" onclick="openModal('modal-rappel')">Rappel</button>
   </div>
 </header>
@@ -784,6 +1193,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
     <button class="btn btn-blue btn-sm" onclick="openNewClientModal()">Nouveau client</button>
   </div>
 </div>
+
+<div class="tag-filter-bar" id="tag-filter-bar"></div>
 
 <div class="clients-grid" id="clients"></div>
 
@@ -969,64 +1380,93 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
 
 <!-- ── Modal : Actions client ────────────────────────────────────────────── -->
 <div class="modal-overlay" id="modal-client" onclick="closeModalOnOverlay(event,'modal-client')">
-  <div class="modal">
+  <div class="modal" style="max-width:680px">
     <div class="modal-header">
       <div class="modal-title" id="modal-client-title">Actions</div>
       <button class="modal-close" onclick="closeModal('modal-client')">x</button>
     </div>
 
-    <!-- PingCastle -->
+    <!-- Section : Imports -->
     <div class="modal-section">
-      <div class="modal-section-title">Importer PingCastle</div>
-      <div class="field">
-        <label>Fichier HTML</label>
-        <input id="modal-pc-file" type="file" accept=".html,.htm">
+      <div class="modal-section-title" style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--blue);font-size:16px">↓</span>
+        Imports
       </div>
-      <div class="btn-row">
-        <button class="btn btn-green btn-sm" onclick="modalUploadPingCastle()">Importer</button>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <!-- PingCastle -->
+        <div style="background:var(--card-alt);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--green)">PingCastle</div>
+          <div class="field" style="margin-bottom:10px">
+            <input id="modal-pc-file" type="file" accept=".html,.htm" style="font-size:12px">
+          </div>
+          <button class="btn btn-green btn-sm" style="width:100%" onclick="modalUploadPingCastle()">Importer</button>
+          <div class="modal-status" id="modal-pc-status" style="margin-top:8px"></div>
+        </div>
+
+        <!-- SharpHound -->
+        <div style="background:var(--card-alt);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--orange)">SharpHound</div>
+          <div class="bh-warning" id="modal-bh-warning" style="display:none;margin-bottom:10px;font-size:11px;padding:8px">
+            <strong id="modal-bh-other"></strong>
+          </div>
+          <div class="field" style="margin-bottom:10px">
+            <input id="modal-sh-file" type="file" accept=".zip" style="font-size:12px">
+          </div>
+          <button class="btn btn-orange btn-sm" style="width:100%" onclick="modalUploadSharpHound()">Importer</button>
+          <div class="modal-status" id="modal-sh-status" style="margin-top:8px"></div>
+        </div>
       </div>
-      <div class="modal-status" id="modal-pc-status"></div>
     </div>
 
-    <!-- SharpHound -->
+    <!-- Section : Rapports -->
     <div class="modal-section">
-      <div class="modal-section-title">Importer SharpHound dans BloodHound</div>
-      <div class="bh-warning" id="modal-bh-warning" style="display:none">
-        BloodHound contient actuellement des donnees de
-        <strong id="modal-bh-other"></strong>.
-        Pensez a vider BloodHound avant d'importer pour eviter les melanges.
+      <div class="modal-section-title" style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--blue);font-size:16px">📊</span>
+        Rapports
       </div>
-      <div class="field">
-        <label>Archive ZIP</label>
-        <input id="modal-sh-file" type="file" accept=".zip">
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <!-- AD-Miner -->
+        <div style="background:var(--card-alt);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">AD-Miner</div>
+          <p style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.4">
+            Génère le rapport à partir des données BloodHound
+          </p>
+          <button class="btn btn-blue btn-sm" style="width:100%" onclick="modalGenerateAdMiner()">Générer</button>
+          <div class="modal-status" id="modal-am-status" style="margin-top:8px"></div>
+        </div>
+
+        <!-- Sources SharpHound -->
+        <div style="background:var(--card-alt);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Sources SharpHound</div>
+          <div id="modal-sh-dl-list" style="font-size:12px">
+            <span style="color:var(--dim)">Chargement...</span>
+          </div>
+        </div>
       </div>
-      <div class="btn-row">
-        <button class="btn btn-orange btn-sm" onclick="modalUploadSharpHound()">Importer</button>
-      </div>
-      <div class="modal-status" id="modal-sh-status"></div>
     </div>
 
-    <!-- AD-Miner -->
+    <!-- Section : Organisation -->
     <div class="modal-section">
-      <div class="modal-section-title">Generer rapport AD-Miner</div>
-      <p class="modal-hint">
-        Les donnees SharpHound doivent etre ingérees dans BloodHound avant de lancer la génération.
-      </p>
-      <button class="btn btn-orange btn-sm" onclick="modalGenerateAdMiner()">Generer AD-Miner</button>
-      <div class="modal-status" id="modal-am-status"></div>
-    </div>
-
-    <!-- Télécharger SharpHound source -->
-    <div class="modal-section">
-      <div class="modal-section-title">Télécharger source SharpHound</div>
-      <div id="modal-sh-dl-list"><span style="color:var(--dim);font-size:13px">Chargement...</span></div>
+      <div class="modal-section-title" style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--blue);font-size:16px">🏷️</span>
+        Organisation
+      </div>
+      <div id="modal-client-tags" style="display:flex;flex-wrap:wrap;gap:8px">
+        <span style="color:var(--dim);font-size:13px">Chargement...</span>
+      </div>
+      <div class="modal-status" id="modal-tags-status"></div>
     </div>
 
     <!-- Zone dangereuse -->
     <div class="modal-section danger">
-      <div class="modal-section-title">Zone dangereuse</div>
+      <div class="modal-section-title" style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--red);font-size:16px">⚠️</span>
+        Zone dangereuse
+      </div>
       <p class="modal-hint">
-        Supprime definitivement tous les rapports et fichiers sources de ce client.
+        Supprime définitivement tous les rapports et fichiers sources de ce client.
       </p>
       <button class="btn btn-red btn-sm" onclick="deleteClient()">Supprimer ce client</button>
       <div class="modal-status" id="modal-del-status"></div>
@@ -1034,9 +1474,377 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
   </div>
 </div>
 
+<!-- ── Modal : Administration ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-admin" onclick="closeModalOnOverlay(event,'modal-admin')">
+  <div class="modal" style="max-width:800px">
+    <div class="modal-header">
+      <div class="modal-title">Administration</div>
+      <button class="modal-close" onclick="closeModal('modal-admin')">x</button>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Utilisateurs</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <p class="modal-hint" style="margin:0">Gérez les utilisateurs et leurs permissions</p>
+        <button class="btn btn-blue btn-sm" onclick="openUserFormModal()">Nouvel utilisateur</button>
+      </div>
+      <div id="users-table-container">
+        <span style="color:var(--dim);font-size:13px">Chargement...</span>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Tags</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <p class="modal-hint" style="margin:0">Organisez vos clients avec des tags colorés</p>
+        <button class="btn btn-blue btn-sm" onclick="openTagFormModal()">Nouveau tag</button>
+      </div>
+      <div id="tags-table-container">
+        <span style="color:var(--dim);font-size:13px">Chargement...</span>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Paramètres système</div>
+      <p class="modal-hint">Configuration globale de la plateforme</p>
+      <button class="btn btn-blue btn-sm" onclick="openSettingsModal()">Configurer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal : Formulaire tag ──────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-tag-form" onclick="closeModalOnOverlay(event,'modal-tag-form')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div class="modal-title" id="tag-form-title">Nouveau tag</div>
+      <button class="modal-close" onclick="closeModal('modal-tag-form')">x</button>
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>Nom du tag</label>
+      <input id="tf-name" type="text" placeholder="Client VIP" maxlength="50">
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>Couleur</label>
+      <input id="tf-color" type="color" value="#4d9fff">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-tag-form')">Annuler</button>
+      <button class="btn btn-blue" id="tf-submit-btn" onclick="submitTagForm()">Créer</button>
+    </div>
+    <div class="modal-status" id="tf-status"></div>
+  </div>
+</div>
+
+<!-- ── Modal : Formulaire utilisateur ────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-user-form" onclick="closeModalOnOverlay(event,'modal-user-form')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div class="modal-title" id="user-form-title">Nouvel utilisateur</div>
+      <button class="modal-close" onclick="closeModal('modal-user-form')">x</button>
+    </div>
+
+    <div class="avatar-upload">
+      <div class="avatar-preview" id="avatar-preview">?</div>
+      <div style="flex:1">
+        <label class="form-label">Image de profil</label>
+        <input type="file" id="avatar-file" accept="image/*" style="font-size:13px">
+        <div class="form-hint">JPG, PNG ou GIF (max 2 Mo)</div>
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom:14px">
+      <label>Nom d'utilisateur</label>
+      <input id="uf-username" type="text" placeholder="jean.dupont" autocomplete="off">
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>Mot de passe <span id="uf-password-hint" style="font-weight:400;text-transform:none;letter-spacing:0">(min 8 caractères)</span></label>
+      <input id="uf-password" type="password" placeholder="Mot de passe" autocomplete="new-password">
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>Rôle</label>
+      <select id="uf-role">
+        <option value="viewer">Viewer (lecture seule)</option>
+        <option value="user">User (créer/modifier audits)</option>
+        <option value="admin">Admin (tous les droits)</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-weight:400">
+        <input type="checkbox" id="uf-active" checked>
+        Compte actif
+      </label>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-user-form')">Annuler</button>
+      <button class="btn btn-blue" id="uf-submit-btn" onclick="submitUserForm()">Créer</button>
+    </div>
+    <div class="modal-status" id="uf-status"></div>
+  </div>
+</div>
+
+<!-- ── Modal : Profil utilisateur ────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-profile" onclick="closeModalOnOverlay(event,'modal-profile')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div class="modal-title">Mon profil</div>
+      <button class="modal-close" onclick="closeModal('modal-profile')">x</button>
+    </div>
+
+    <div class="avatar-upload">
+      <div class="avatar-preview" id="profile-avatar-preview">?</div>
+      <div style="flex:1">
+        <label class="form-label">Image de profil</label>
+        <input type="file" id="profile-avatar-file" accept="image/*" style="font-size:13px">
+        <div class="form-hint">JPG, PNG ou GIF (max 2 Mo)</div>
+        <button class="btn btn-blue btn-sm" style="margin-top:8px" onclick="uploadProfileAvatar()">Modifier l'image</button>
+      </div>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:4px">Utilisateur</div>
+      <div style="font-size:15px;font-weight:600" id="profile-username"></div>
+      <div style="font-size:13px;color:var(--muted);margin-top:8px;margin-bottom:4px">Rôle</div>
+      <div id="profile-role"></div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Changer mon mot de passe</div>
+      <div class="field" style="margin-bottom:12px">
+        <label>Nouveau mot de passe</label>
+        <input id="profile-new-password" type="password" placeholder="Min 8 caractères" autocomplete="new-password">
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Confirmer le mot de passe</label>
+        <input id="profile-confirm-password" type="password" placeholder="Confirmer" autocomplete="new-password">
+      </div>
+      <button class="btn btn-blue btn-sm" onclick="changeOwnPassword()">Changer le mot de passe</button>
+      <div class="modal-status" id="profile-password-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal : Paramètres système ──────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-settings" onclick="closeModalOnOverlay(event,'modal-settings')">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <div class="modal-title">Paramètres système</div>
+      <button class="modal-close" onclick="closeModal('modal-settings')">x</button>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">BloodHound</div>
+      <div class="field" style="margin-bottom:14px">
+        <label>URL de l'API BloodHound</label>
+        <input id="set-bh-url" type="text" placeholder="http://host.docker.internal:8080">
+        <div class="form-hint">URL complète de l'API BloodHound CE</div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Mode</label>
+        <select id="set-bh-mode">
+          <option value="local">Local (BloodHound dans le même Docker Compose)</option>
+          <option value="remote">Remote (BloodHound externe)</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Timeout ingestion (secondes)</label>
+        <input id="set-ingest-timeout" type="number" min="5" max="600" placeholder="30">
+        <div class="form-hint">Temps d'attente max pour l'ingestion SharpHound dans BloodHound</div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Sécurité</div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Expiration des tokens JWT (heures)</label>
+        <input id="set-jwt-exp" type="number" min="1" max="720" placeholder="24">
+        <div class="form-hint">Durée de validité des sessions utilisateur</div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Rate limit - Max requêtes</label>
+        <input id="set-rate-max" type="number" min="10" max="10000" placeholder="120">
+        <div class="form-hint">Nombre max de requêtes par IP dans la fenêtre de temps</div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Rate limit - Fenêtre (secondes)</label>
+        <input id="set-rate-window" type="number" min="10" max="3600" placeholder="60">
+        <div class="form-hint">Fenêtre de temps pour le rate limiting</div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Tailles max des uploads</div>
+      <div class="field" style="margin-bottom:14px">
+        <label>PingCastle (octets)</label>
+        <input id="set-max-pc" type="number" min="1048576" max="524288000" placeholder="52428800">
+        <div class="form-hint">Taille max des rapports PingCastle (défaut: 50 Mo)</div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>SharpHound (octets)</label>
+        <input id="set-max-sh" type="number" min="10485760" max="5242880000" placeholder="524288000">
+        <div class="form-hint">Taille max des ZIPs SharpHound (défaut: 500 Mo)</div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Système</div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Fuseau horaire</label>
+        <input id="set-timezone" type="text" placeholder="Europe/Paris">
+        <div class="form-hint">Fuseau horaire pour les logs et affichages</div>
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Niveau de log</label>
+        <select id="set-log-level">
+          <option value="DEBUG">Debug</option>
+          <option value="INFO">Info</option>
+          <option value="WARNING">Warning</option>
+          <option value="ERROR">Error</option>
+          <option value="CRITICAL">Critical</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-settings')">Annuler</button>
+      <button class="btn btn-blue" onclick="saveSettings()">Enregistrer</button>
+    </div>
+    <div class="modal-status" id="settings-status"></div>
+  </div>
+</div>
+
 <!-- ── Scripts ──────────────────────────────────────────────────────────── -->
 <script>
 let audits = [];
+let currentUser = null;
+
+async function authFetch(url, options = {}) {
+  const token = localStorage.getItem('toad_token');
+  if (!options.headers) options.headers = {};
+  if (token) options.headers['Authorization'] = 'Bearer ' + token;
+  const r = await fetch(url, options);
+  if (r.status === 401) {
+    localStorage.removeItem('toad_token');
+    currentUser = null;
+    showLogin();
+    throw new Error('Unauthorized');
+  }
+  return r;
+}
+
+function showLogin() {
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('login-error').classList.remove('visible');
+  document.getElementById('login-password').value = '';
+}
+
+function hideLogin() {
+  document.getElementById('login-overlay').classList.add('hidden');
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!username || !password) { showLoginError('Identifiant et mot de passe requis.'); return; }
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.textContent = 'Connexion...';
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      showLoginError(data.detail || 'Identifiants invalides.');
+      return;
+    }
+    const data = await r.json();
+    localStorage.setItem('toad_token', data.access_token);
+    currentUser = data.user;
+    hideLogin();
+    updateUserBadge();
+    loadAll();
+  } catch (e) {
+    showLoginError('Erreur de connexion.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Se connecter';
+  }
+}
+
+function doLogout() {
+  if (!confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) return;
+  localStorage.removeItem('toad_token');
+  currentUser = null;
+  showLogin();
+}
+
+function updateUserBadge() {
+  const badge = document.getElementById('user-badge');
+  const nameEl = document.getElementById('user-name');
+  const avatarEl = document.getElementById('user-avatar');
+  const adminBtn = document.getElementById('admin-btn');
+  if (currentUser) {
+    badge.style.display = 'flex';
+    nameEl.textContent = currentUser.username;
+    // Avatar
+    const initials = currentUser.username.substring(0, 2).toUpperCase();
+    avatarEl.innerHTML = '<img src="/api/users/' + currentUser.id + '/avatar" onerror="this.style.display=\'none\';this.parentNode.textContent=\'' + initials + '\'">';
+    // Admin button
+    if (currentUser.role === 'admin') {
+      adminBtn.style.display = 'inline-block';
+    } else {
+      adminBtn.style.display = 'none';
+    }
+  } else {
+    badge.style.display = 'none';
+    adminBtn.style.display = 'none';
+  }
+}
+
+async function checkAuth() {
+  const token = localStorage.getItem('toad_token');
+  if (!token) { showLogin(); return; }
+  try {
+    const r = await fetch('/api/auth/me', {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    if (r.ok) {
+      currentUser = await r.json();
+      hideLogin();
+      updateUserBadge();
+      loadAll();
+    } else {
+      localStorage.removeItem('toad_token');
+      showLogin();
+    }
+  } catch {
+    showLogin();
+  }
+}
+
+async function downloadSharpHound(slug, filename) {
+  try {
+    const r = await authFetch('/api/clients/' + slug + '/sharphound/download/' + filename);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {}
+}
 let bhStatus = {};
 let activeJobs = new Map();
 let pollIntervals = new Map();
@@ -1071,7 +1879,7 @@ function startJobPolling(jobId, label, onDone) {
   updateJobsBar();
   const iv = setInterval(async () => {
     try {
-      const r = await fetch(`/api/jobs/${jobId}`);
+      const r = await authFetch(`/api/jobs/${jobId}`);
       if (!r.ok) { clearInterval(iv); return; }
       const job = await r.json();
       if (job.status === 'done') {
@@ -1167,6 +1975,7 @@ function openClientModal(slug, name) {
   setModalStatus('modal-sh-status', '');
   setModalStatus('modal-am-status', '');
   setModalStatus('modal-del-status', '');
+  setModalStatus('modal-tags-status', '');
 
   // Afficher un avertissement si BH a des données d'un autre client
   const warn = document.getElementById('modal-bh-warning');
@@ -1179,6 +1988,7 @@ function openClientModal(slug, name) {
 
   openModal('modal-client');
   loadSharpHoundFiles(slug);
+  loadClientTags(slug);
 }
 
 // ── Load data ─────────────────────────────────────────────────────────────
@@ -1189,7 +1999,8 @@ async function loadAll() {
 
 async function loadAudits() {
   try {
-    const r = await fetch('/api/audits');
+    const url = activeTagFilter ? '/api/audits?tag=' + encodeURIComponent(activeTagFilter) : '/api/audits';
+    const r = await authFetch(url);
     audits = await r.json();
     renderClients();
     updateStats();
@@ -1200,7 +2011,7 @@ async function loadAudits() {
 
 async function loadBhStatus() {
   try {
-    const r = await fetch('/api/bloodhound/status');
+    const r = await authFetch('/api/bloodhound/status');
     bhStatus = await r.json();
     updateBhHeader();
   } catch (_) {}
@@ -1245,11 +2056,25 @@ function renderClients() {
     const shDate = c.sources && c.sources.sharphound_date;
     const shCount = c.sources && c.sources.sharphound_count;
     const bh = c.bloodhound_active;
+    const tags = c.tags || [];
 
     const bhBadge = bh && bhStatus.file ? `
       <div class="bh-card-badge">
         <div class="bh-card-badge-dot"></div>
         <span class="bh-card-badge-text">BloodHound : ${esc(bhStatus.file)}</span>
+      </div>
+    ` : '';
+
+    const tagsHtml = tags.length > 0 ? `
+      <div class="tags-container">
+        ${tags.map(tagSlug => {
+          const tag = allTags[tagSlug];
+          if (!tag) return '';
+          return `<span class="tag-badge" style="background:${esc(tag.color)}22;color:${esc(tag.color)};border:1px solid ${esc(tag.color)}44">
+            <span class="tag-badge-dot" style="background:${esc(tag.color)}"></span>
+            ${esc(tag.name)}
+          </span>`;
+        }).join('')}
       </div>
     ` : '';
 
@@ -1288,6 +2113,8 @@ function renderClients() {
           </div>
         </div>
 
+        ${tagsHtml}
+
         ${lastAudit}
 
         <div class="card-btns">
@@ -1318,7 +2145,7 @@ async function resetBloodHound() {
   if (!confirm('Vider BloodHound ? Cette action supprime toutes les données du graphe.')) return;
   setStatus('bh-status', 'Reinitialisation en cours...', 'info');
   try {
-    const r = await fetch('/api/bloodhound/reset', { method: 'POST' });
+    const r = await authFetch('/api/bloodhound/reset', { method: 'POST' });
     const d = await r.json();
     if (!r.ok) { setStatus('bh-status', d.detail, 'error'); showToast('Erreur', d.detail, 'error'); return; }
     setStatus('bh-status', d.message, 'success');
@@ -1349,7 +2176,7 @@ async function createFullAudit() {
 
   setStatus('fa-status', 'Envoi des fichiers...', 'info');
   try {
-    const r = await fetch('/api/audits/full', { method: 'POST', body: fd });
+    const r = await authFetch('/api/audits/full', { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) { setStatus('fa-status', d.detail, 'error'); return; }
     setStatus('fa-status', 'Audit lance — progression en cours...', 'info');
@@ -1373,7 +2200,7 @@ async function createClient() {
   fd.append('slug', slug);
   setStatus('nc-status', 'Creation...', 'info');
   try {
-    const r = await fetch('/api/clients', { method: 'POST', body: fd });
+    const r = await authFetch('/api/clients', { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) { setStatus('nc-status', d.detail, 'error'); return; }
     setStatus('nc-status', d.message, 'success');
@@ -1396,7 +2223,7 @@ async function modalUploadPingCastle() {
   fd.append('report', file.files[0]);
   setModalStatus('modal-pc-status', 'Import en cours...', 'info');
   try {
-    const r = await fetch(`/api/clients/${modalSlug}/pingcastle`, { method: 'POST', body: fd });
+    const r = await authFetch(`/api/clients/${modalSlug}/pingcastle`, { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) { setModalStatus('modal-pc-status', d.detail, 'error'); return; }
     setModalStatus('modal-pc-status', d.message, 'success');
@@ -1416,7 +2243,7 @@ async function modalUploadSharpHound() {
   fd.append('zip_file', file.files[0]);
   setModalStatus('modal-sh-status', 'Upload vers BloodHound...', 'info');
   try {
-    const r = await fetch(`/api/clients/${modalSlug}/sharphound`, { method: 'POST', body: fd });
+    const r = await authFetch(`/api/clients/${modalSlug}/sharphound`, { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) { setModalStatus('modal-sh-status', d.detail, 'error'); return; }
     setModalStatus('modal-sh-status', d.message, 'success');
@@ -1436,7 +2263,7 @@ async function modalGenerateAdMiner() {
   if (!confirm(`Generer AD-Miner pour « ${modalSlug} » ?\nLe ZIP SharpHound doit etre ingere dans BloodHound.`)) return;
   setModalStatus('modal-am-status', 'Generation lancee...', 'info');
   try {
-    const r = await fetch(`/api/clients/${modalSlug}/ad-miner/generate`, { method: 'POST' });
+    const r = await authFetch(`/api/clients/${modalSlug}/ad-miner/generate`, { method: 'POST' });
     const d = await r.json();
     if (!r.ok) { setModalStatus('modal-am-status', d.detail, 'error'); return; }
     startJobPolling(d.job_id, `AD-Miner — ${modalSlug}`, () => setModalStatus('modal-am-status', 'Rapport genere.', 'success'));
@@ -1451,7 +2278,7 @@ async function loadSharpHoundFiles(slug) {
   const el = document.getElementById('modal-sh-dl-list');
   el.innerHTML = '<span style="color:var(--dim);font-size:13px">Chargement...</span>';
   try {
-    const r = await fetch(`/api/clients/${slug}/sharphound/files`);
+    const r = await authFetch(`/api/clients/${slug}/sharphound/files`);
     const files = await r.json();
     if (!files.length) {
       el.innerHTML = '<span style="color:var(--dim);font-size:13px">Aucune source archivée.</span>';
@@ -1463,11 +2290,10 @@ async function loadSharpHoundFiles(slug) {
           <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(f.filename)}</div>
           <div style="font-size:12px;color:var(--dim)">${esc(f.date)} — ${(f.size/1024/1024).toFixed(1)} Mo</div>
         </div>
-        <a class="btn btn-blue btn-sm"
-           href="/api/clients/${esc(slug)}/sharphound/download/${esc(f.filename)}"
-           download="${esc(f.filename)}">
+        <button class="btn btn-blue btn-sm"
+           onclick="downloadSharpHound('${esc(slug)}','${esc(f.filename)}')">
           Télécharger
-        </a>
+        </button>
       </div>
     `).join('');
   } catch (e) {
@@ -1482,7 +2308,7 @@ async function deleteClient() {
   if (!confirm(`Supprimer definitivement le client « ${name} » ?\n\nTous les rapports et fichiers sources seront effaces. Cette action est irreversible.`)) return;
   setModalStatus('modal-del-status', 'Suppression...', 'info');
   try {
-    const r = await fetch(`/api/clients/${modalSlug}`, { method: 'DELETE' });
+    const r = await authFetch(`/api/clients/${modalSlug}`, { method: 'DELETE' });
     const d = await r.json();
     if (!r.ok) { setModalStatus('modal-del-status', d.detail, 'error'); return; }
     showToast('Client supprime', d.message, 'info');
@@ -1508,14 +2334,546 @@ function backToRappelMenu() {
   document.getElementById('rappel-menu').style.display = 'block';
 }
 
+// ── Administration ────────────────────────────────────────────────────────
+
+let editingUserId = null;
+let allUsers = [];
+
+async function openAdminModal() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  openModal('modal-admin');
+  await Promise.all([loadUsers(), loadTags()]);
+}
+
+async function loadUsers() {
+  const container = document.getElementById('users-table-container');
+  container.innerHTML = '<span style="color:var(--dim);font-size:13px">Chargement...</span>';
+  try {
+    const r = await authFetch('/api/users');
+    allUsers = await r.json();
+    renderUsersTable(allUsers);
+  } catch (e) {
+    container.innerHTML = '<span style="color:var(--red);font-size:13px">Erreur: ' + esc(String(e)) + '</span>';
+  }
+}
+
+function renderUsersTable(users) {
+  const container = document.getElementById('users-table-container');
+  if (!users.length) {
+    container.innerHTML = '<span style="color:var(--dim);font-size:13px">Aucun utilisateur</span>';
+    return;
+  }
+  let html = '<table class="admin-table"><thead><tr>';
+  html += '<th></th><th>Utilisateur</th><th>Rôle</th><th>Statut</th><th>Créé le</th><th>Actions</th>';
+  html += '</tr></thead><tbody>';
+  for (const u of users) {
+    const avatarUrl = '/api/users/' + u.id + '/avatar';
+    const initials = u.username.substring(0, 2).toUpperCase();
+    const statusClass = u.is_active ? 'active' : 'inactive';
+    const statusText = u.is_active ? 'Actif' : 'Inactif';
+    const createdDate = u.created_at ? u.created_at.substring(0, 10) : '-';
+    const isSelf = currentUser && currentUser.id === u.id;
+
+    html += '<tr>';
+    html += '<td><div class="user-avatar" style="width:28px;height:28px;font-size:11px"><img src="' + avatarUrl + '" onerror="this.style.display=\'none\';this.parentNode.textContent=\'' + initials + '\'"></div></td>';
+    html += '<td style="font-weight:600">' + esc(u.username) + (isSelf ? ' <span style="color:var(--dim);font-weight:400;font-size:12px">(vous)</span>' : '') + '</td>';
+    html += '<td><span class="role-badge ' + u.role + '">' + esc(u.role) + '</span></td>';
+    html += '<td><span class="status-dot ' + statusClass + '"></span>' + statusText + '</td>';
+    html += '<td style="color:var(--dim);font-size:13px">' + esc(createdDate) + '</td>';
+    html += '<td>';
+    html += '<button class="btn btn-ghost btn-sm" onclick="editUser(' + u.id + ')" style="margin-right:4px">Modifier</button>';
+    if (!isSelf) {
+      html += '<button class="btn btn-red btn-sm" onclick="deleteUser(' + u.id + ', \'' + esc(u.username) + '\')">Supprimer</button>';
+    }
+    html += '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function openUserFormModal(userId) {
+  editingUserId = userId || null;
+  const title = document.getElementById('user-form-title');
+  const submitBtn = document.getElementById('uf-submit-btn');
+  const passwordField = document.getElementById('uf-password');
+  const passwordHint = document.getElementById('uf-password-hint');
+  const status = document.getElementById('uf-status');
+  status.textContent = '';
+
+  if (editingUserId) {
+    const user = allUsers.find(u => u.id === editingUserId);
+    if (!user) return;
+    title.textContent = 'Modifier ' + user.username;
+    submitBtn.textContent = 'Enregistrer';
+    document.getElementById('uf-username').value = user.username;
+    document.getElementById('uf-role').value = user.role;
+    document.getElementById('uf-active').checked = !!user.is_active;
+    passwordField.value = '';
+    passwordField.placeholder = 'Laisser vide pour ne pas changer';
+    passwordHint.textContent = '(laisser vide pour ne pas changer)';
+    // Load avatar
+    const avatarPreview = document.getElementById('avatar-preview');
+    avatarPreview.innerHTML = '<img src="/api/users/' + user.id + '/avatar" onerror="this.style.display=\'none\';this.parentNode.textContent=\'' + user.username.substring(0,2).toUpperCase() + '\'">';
+  } else {
+    title.textContent = 'Nouvel utilisateur';
+    submitBtn.textContent = 'Créer';
+    document.getElementById('uf-username').value = '';
+    document.getElementById('uf-password').value = '';
+    document.getElementById('uf-role').value = 'viewer';
+    document.getElementById('uf-active').checked = true;
+    passwordField.placeholder = 'Mot de passe';
+    passwordHint.textContent = '(min 8 caractères)';
+    document.getElementById('avatar-preview').textContent = '?';
+    document.getElementById('avatar-file').value = '';
+  }
+  openModal('modal-user-form');
+}
+
+function editUser(userId) {
+  openUserFormModal(userId);
+}
+
+async function submitUserForm() {
+  const username = document.getElementById('uf-username').value.trim();
+  const password = document.getElementById('uf-password').value;
+  const role = document.getElementById('uf-role').value;
+  const isActive = document.getElementById('uf-active').checked;
+  const avatarFile = document.getElementById('avatar-file').files[0];
+  const status = document.getElementById('uf-status');
+
+  if (!username) { setModalStatus('uf-status', 'Nom d\'utilisateur requis.', 'error'); return; }
+  if (!editingUserId && !password) { setModalStatus('uf-status', 'Mot de passe requis.', 'error'); return; }
+  if (password && password.length < 8) { setModalStatus('uf-status', 'Mot de passe trop court (min 8).', 'error'); return; }
+
+  status.textContent = editingUserId ? 'Modification...' : 'Création...';
+  status.className = 'modal-status info';
+
+  try {
+    let r;
+    if (editingUserId) {
+      const body = { username, role, is_active: isActive };
+      r = await authFetch('/api/users/' + editingUserId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { const d = await r.json(); setModalStatus('uf-status', d.detail || 'Erreur', 'error'); return; }
+      // Upload avatar if provided
+      if (avatarFile) {
+        const fd = new FormData();
+        fd.append('avatar', avatarFile);
+        r = await authFetch('/api/users/' + editingUserId + '/avatar', { method: 'POST', body: fd });
+        if (!r.ok) { const d = await r.json(); setModalStatus('uf-status', d.detail || 'Erreur avatar', 'error'); return; }
+      }
+      // Reset password if provided
+      if (password) {
+        r = await authFetch('/api/users/' + editingUserId + '/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: password }) });
+        if (!r.ok) { const d = await r.json(); setModalStatus('uf-status', d.detail || 'Erreur mot de passe', 'error'); return; }
+      }
+      showToast('Utilisateur modifié', username + ' mis à jour.', 'success');
+    } else {
+      const body = { username, password, role };
+      r = await authFetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { const d = await r.json(); setModalStatus('uf-status', d.detail || 'Erreur', 'error'); return; }
+      const d = await r.json();
+      const newUserId = d.id;
+      // Upload avatar if provided
+      if (avatarFile) {
+        const fd = new FormData();
+        fd.append('avatar', avatarFile);
+        r = await authFetch('/api/users/' + newUserId + '/avatar', { method: 'POST', body: fd });
+        if (!r.ok) { /* Non-critical, just warn */ console.warn('Avatar upload failed'); }
+      }
+      showToast('Utilisateur créé', username + ' créé avec succès.', 'success');
+    }
+    closeModal('modal-user-form');
+    await loadUsers();
+  } catch (e) {
+    setModalStatus('uf-status', String(e), 'error');
+  }
+}
+
+async function deleteUser(userId, username) {
+  if (!confirm('Supprimer définitivement l\'utilisateur « ' + username + ' » ?')) return;
+  try {
+    const r = await authFetch('/api/users/' + userId, { method: 'DELETE' });
+    if (!r.ok) { const d = await r.json(); showToast('Erreur', d.detail || 'Impossible de supprimer', 'error'); return; }
+    showToast('Utilisateur supprimé', username + ' supprimé.', 'info');
+    await loadUsers();
+  } catch (e) {
+    showToast('Erreur', String(e), 'error');
+  }
+}
+
+// ── Tags management ──────────────────────────────────────────────────────
+
+let allTags = {};
+let editingTagSlug = null;
+let activeTagFilter = null;
+
+async function loadTags() {
+  try {
+    const r = await authFetch('/api/tags');
+    allTags = await r.json();
+    renderTagsTable();
+    renderTagFilterBar();
+  } catch (e) {
+    console.warn('Failed to load tags', e);
+  }
+}
+
+async function loadClientTags(slug) {
+  const container = document.getElementById('modal-client-tags');
+  container.innerHTML = '<span style="color:var(--dim);font-size:13px">Chargement...</span>';
+  
+  try {
+    const [tagsR, clientTagsR] = await Promise.all([
+      authFetch('/api/tags'),
+      authFetch('/api/clients/' + slug + '/tags')
+    ]);
+    
+    allTags = await tagsR.json();
+    const clientTags = await clientTagsR.json();
+    
+    if (Object.keys(allTags).length === 0) {
+      container.innerHTML = '<span style="color:var(--dim);font-size:13px">Aucun tag disponible. Créez-en un dans l\'administration.</span>';
+      return;
+    }
+    
+    let html = '';
+    for (const [slug, tag] of Object.entries(allTags)) {
+      const isSelected = clientTags.includes(slug);
+      html += `<span class="tag-toggle ${isSelected ? 'selected' : ''}" 
+                    style="background:${tag.color}22;color:${tag.color}" 
+                    onclick="toggleClientTag('${slug}')">
+                <span class="tag-toggle-dot" style="background:${tag.color}"></span>
+                ${tag.name}
+              </span>`;
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<span style="color:var(--red);font-size:13px">Erreur de chargement</span>';
+  }
+}
+
+async function toggleClientTag(tagSlug) {
+  if (!modalSlug) return;
+  
+  try {
+    const r = await authFetch('/api/clients/' + modalSlug + '/tags');
+    const currentTags = await r.json();
+    
+    const newTags = currentTags.includes(tagSlug)
+      ? currentTags.filter(t => t !== tagSlug)
+      : [...currentTags, tagSlug];
+    
+    const updateR = await authFetch('/api/clients/' + modalSlug + '/tags', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: newTags })
+    });
+    
+    if (updateR.ok) {
+      setModalStatus('modal-tags-status', 'Tags mis à jour', 'success');
+      loadClientTags(modalSlug);
+      loadAudits();
+    } else {
+      const d = await updateR.json();
+      setModalStatus('modal-tags-status', d.detail || 'Erreur', 'error');
+    }
+  } catch (e) {
+    setModalStatus('modal-tags-status', 'Erreur: ' + e.message, 'error');
+  }
+}
+
+function renderTagsTable() {
+  const container = document.getElementById('tags-table-container');
+  if (!container) return;
+  const slugs = Object.keys(allTags);
+  if (!slugs.length) {
+    container.innerHTML = '<span style="color:var(--dim);font-size:13px">Aucun tag créé</span>';
+    return;
+  }
+  let html = '<table class="tags-admin-table"><thead><tr>';
+  html += '<th>Couleur</th><th>Nom</th><th>Slug</th><th>Actions</th>';
+  html += '</tr></thead><tbody>';
+  for (const slug of slugs) {
+    const tag = allTags[slug];
+    html += '<tr>';
+    html += '<td><span class="color-preview" style="background:' + esc(tag.color) + '"></span></td>';
+    html += '<td style="font-weight:600">' + esc(tag.name) + '</td>';
+    html += '<td style="color:var(--dim);font-size:13px;font-family:monospace">' + esc(slug) + '</td>';
+    html += '<td>';
+    html += '<button class="btn btn-ghost btn-sm" onclick="editTag(\'' + esc(slug) + '\')" style="margin-right:4px">Modifier</button>';
+    html += '<button class="btn btn-red btn-sm" onclick="deleteTag(\'' + esc(slug) + '\', \'' + esc(tag.name) + '\')">Supprimer</button>';
+    html += '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function renderTagFilterBar() {
+  const bar = document.getElementById('tag-filter-bar');
+  if (!bar) return;
+  const slugs = Object.keys(allTags);
+  if (!slugs.length) {
+    bar.innerHTML = '';
+    return;
+  }
+  let html = '<span style="font-size:12px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Filtrer :</span>';
+  html += '<button class="tag-filter-btn' + (!activeTagFilter ? ' active' : '') + '" onclick="filterByTag(null)">Tous</button>';
+  for (const slug of slugs) {
+    const tag = allTags[slug];
+    const isActive = activeTagFilter === slug;
+    html += '<button class="tag-filter-btn' + (isActive ? ' active' : '') + '" onclick="filterByTag(\'' + esc(slug) + '\')">';
+    html += '<span class="tag-filter-dot" style="background:' + esc(tag.color) + '"></span>';
+    html += esc(tag.name);
+    html += '</button>';
+  }
+  bar.innerHTML = html;
+}
+
+function filterByTag(slug) {
+  activeTagFilter = slug;
+  renderTagFilterBar();
+  loadAudits();
+}
+
+function openTagFormModal(slug) {
+  editingTagSlug = slug || null;
+  const title = document.getElementById('tag-form-title');
+  const submitBtn = document.getElementById('tf-submit-btn');
+  const status = document.getElementById('tf-status');
+  status.textContent = '';
+
+  if (editingTagSlug && allTags[editingTagSlug]) {
+    const tag = allTags[editingTagSlug];
+    title.textContent = 'Modifier le tag';
+    submitBtn.textContent = 'Enregistrer';
+    document.getElementById('tf-name').value = tag.name;
+    document.getElementById('tf-color').value = tag.color;
+  } else {
+    editingTagSlug = null;
+    title.textContent = 'Nouveau tag';
+    submitBtn.textContent = 'Créer';
+    document.getElementById('tf-name').value = '';
+    document.getElementById('tf-color').value = '#4d9fff';
+  }
+  openModal('modal-tag-form');
+}
+
+function editTag(slug) {
+  openTagFormModal(slug);
+}
+
+async function submitTagForm() {
+  const name = document.getElementById('tf-name').value.trim();
+  const color = document.getElementById('tf-color').value;
+  const status = document.getElementById('tf-status');
+
+  if (!name) { setModalStatus('tf-status', 'Nom requis.', 'error'); return; }
+
+  status.textContent = editingTagSlug ? 'Modification...' : 'Création...';
+  status.className = 'modal-status info';
+
+  try {
+    let r;
+    if (editingTagSlug) {
+      r = await authFetch('/api/tags/' + editingTagSlug, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color }),
+      });
+    } else {
+      r = await authFetch('/api/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color }),
+      });
+    }
+    if (!r.ok) {
+      const d = await r.json();
+      setModalStatus('tf-status', d.detail || 'Erreur', 'error');
+      return;
+    }
+    showToast(editingTagSlug ? 'Tag modifié' : 'Tag créé', name, 'success');
+    closeModal('modal-tag-form');
+    await loadTags();
+  } catch (e) {
+    setModalStatus('tf-status', String(e), 'error');
+  }
+}
+
+async function deleteTag(slug, name) {
+  if (!confirm('Supprimer le tag « ' + name + ' » ?\nIl sera retiré de tous les clients.')) return;
+  try {
+    const r = await authFetch('/api/tags/' + slug, { method: 'DELETE' });
+    if (!r.ok) {
+      const d = await r.json();
+      showToast('Erreur', d.detail || 'Impossible de supprimer', 'error');
+      return;
+    }
+    if (activeTagFilter === slug) activeTagFilter = null;
+    showToast('Tag supprimé', name, 'info');
+    await loadTags();
+    await loadAudits();
+  } catch (e) {
+    showToast('Erreur', String(e), 'error');
+  }
+}
+
+// ── Profil utilisateur ────────────────────────────────────────────────────
+
+function openProfileModal() {
+  if (!currentUser) return;
+  document.getElementById('profile-username').textContent = currentUser.username;
+  const roleBadge = document.getElementById('profile-role');
+  roleBadge.innerHTML = '<span class="role-badge ' + currentUser.role + '">' + currentUser.role + '</span>';
+  document.getElementById('profile-new-password').value = '';
+  document.getElementById('profile-confirm-password').value = '';
+  setModalStatus('profile-password-status', '', '');
+  // Load avatar
+  const avatarPreview = document.getElementById('profile-avatar-preview');
+  avatarPreview.innerHTML = '<img src="/api/users/' + currentUser.id + '/avatar" onerror="this.style.display=\'none\';this.parentNode.textContent=\'' + currentUser.username.substring(0,2).toUpperCase() + '\'">';
+  document.getElementById('profile-avatar-file').value = '';
+  openModal('modal-profile');
+}
+
+async function uploadProfileAvatar() {
+  const file = document.getElementById('profile-avatar-file').files[0];
+  if (!file) { setModalStatus('profile-password-status', 'Sélectionnez une image.', 'error'); return; }
+  const fd = new FormData();
+  fd.append('avatar', file);
+  setModalStatus('profile-password-status', 'Upload...', 'info');
+  try {
+    const r = await authFetch('/api/users/' + currentUser.id + '/avatar', { method: 'POST', body: fd });
+    if (!r.ok) { const d = await r.json(); setModalStatus('profile-password-status', d.detail || 'Erreur', 'error'); return; }
+    setModalStatus('profile-password-status', 'Image mise à jour.', 'success');
+    // Refresh avatar in header
+    await refreshCurrentUser();
+    // Refresh preview
+    const avatarPreview = document.getElementById('profile-avatar-preview');
+    avatarPreview.innerHTML = '<img src="/api/users/' + currentUser.id + '/avatar?t=' + Date.now() + '">';
+    showToast('Avatar mis à jour', 'Image de profil modifiée.', 'success');
+  } catch (e) {
+    setModalStatus('profile-password-status', String(e), 'error');
+  }
+}
+
+async function changeOwnPassword() {
+  const newPw = document.getElementById('profile-new-password').value;
+  const confirmPw = document.getElementById('profile-confirm-password').value;
+  if (!newPw || newPw.length < 8) { setModalStatus('profile-password-status', 'Mot de passe trop court (min 8).', 'error'); return; }
+  if (newPw !== confirmPw) { setModalStatus('profile-password-status', 'Les mots de passe ne correspondent pas.', 'error'); return; }
+  setModalStatus('profile-password-status', 'Modification...', 'info');
+  try {
+    const r = await authFetch('/api/users/' + currentUser.id + '/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: newPw }) });
+    if (!r.ok) { const d = await r.json(); setModalStatus('profile-password-status', d.detail || 'Erreur', 'error'); return; }
+    setModalStatus('profile-password-status', 'Mot de passe changé. Reconnexion requise.', 'success');
+    showToast('Mot de passe changé', 'Vous devez vous reconnecter.', 'info');
+    setTimeout(() => { doLogout(); }, 2000);
+  } catch (e) {
+    setModalStatus('profile-password-status', String(e), 'error');
+  }
+}
+
+async function refreshCurrentUser() {
+  try {
+    const r = await fetch('/api/auth/me', {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('toad_token') },
+    });
+    if (r.ok) {
+      currentUser = await r.json();
+      updateUserBadge();
+    }
+  } catch (e) {
+    console.warn('Failed to refresh user', e);
+  }
+}
+
+// ── Paramètres système ────────────────────────────────────────────────────
+
+async function openSettingsModal() {
+  openModal('modal-settings');
+  await loadSettings();
+}
+
+async function loadSettings() {
+  setModalStatus('settings-status', 'Chargement...', 'info');
+  try {
+    const r = await authFetch('/api/settings');
+    if (!r.ok) { setModalStatus('settings-status', 'Erreur de chargement', 'error'); return; }
+    const settings = await r.json();
+    
+    document.getElementById('set-bh-url').value = settings.bloodhound_url || '';
+    document.getElementById('set-bh-mode').value = settings.bloodhound_mode || 'local';
+    document.getElementById('set-ingest-timeout').value = settings.ingest_wait_seconds || 30;
+    document.getElementById('set-jwt-exp').value = settings.jwt_expiration_hours || 24;
+    document.getElementById('set-rate-max').value = settings.rate_limit_max || 120;
+    document.getElementById('set-rate-window').value = settings.rate_limit_window || 60;
+    document.getElementById('set-max-pc').value = settings.max_pingcastle_size || 52428800;
+    document.getElementById('set-max-sh').value = settings.max_sharphound_size || 524288000;
+    document.getElementById('set-timezone').value = settings.timezone || 'Europe/Paris';
+    document.getElementById('set-log-level').value = settings.log_level || 'INFO';
+    
+    setModalStatus('settings-status', '', '');
+  } catch (e) {
+    setModalStatus('settings-status', 'Erreur: ' + String(e), 'error');
+  }
+}
+
+async function saveSettings() {
+  setModalStatus('settings-status', 'Enregistrement...', 'info');
+  
+  const settings = {
+    bloodhound_url: document.getElementById('set-bh-url').value.trim() || null,
+    bloodhound_mode: document.getElementById('set-bh-mode').value,
+    ingest_wait_seconds: parseInt(document.getElementById('set-ingest-timeout').value) || null,
+    jwt_expiration_hours: parseInt(document.getElementById('set-jwt-exp').value) || null,
+    rate_limit_max: parseInt(document.getElementById('set-rate-max').value) || null,
+    rate_limit_window: parseInt(document.getElementById('set-rate-window').value) || null,
+    max_pingcastle_size: parseInt(document.getElementById('set-max-pc').value) || null,
+    max_sharphound_size: parseInt(document.getElementById('set-max-sh').value) || null,
+    timezone: document.getElementById('set-timezone').value.trim() || null,
+    log_level: document.getElementById('set-log-level').value,
+  };
+  
+  try {
+    const r = await authFetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    
+    if (!r.ok) {
+      const d = await r.json();
+      setModalStatus('settings-status', d.detail || 'Erreur', 'error');
+      return;
+    }
+    
+    setModalStatus('settings-status', 'Paramètres enregistrés. Certains changements nécessitent un redémarrage.', 'success');
+    showToast('Paramètres enregistrés', 'Configuration mise à jour.', 'success');
+    
+    setTimeout(() => {
+      closeModal('modal-settings');
+    }, 2000);
+  } catch (e) {
+    setModalStatus('settings-status', 'Erreur: ' + String(e), 'error');
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────
 
 document.getElementById('search').addEventListener('input', renderClients);
 
-loadAll();
+document.getElementById('login-password').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doLogin();
+});
 
-// Rafraichissement auto toutes les 30 secondes
-setInterval(loadAll, 30000);
+checkAuth();
+loadTags();
+
+setInterval(function() {
+  if (currentUser) loadAll();
+}, 30000);
 </script>
 </body>
 </html>

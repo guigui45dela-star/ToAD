@@ -2,19 +2,26 @@ import json
 import logging
 import os
 import re
+import secrets
 import shutil
+import sqlite3
 import subprocess
 import threading
 import time
 import uuid
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from contextlib import asynccontextmanager, contextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Optional
 
+import bcrypt
 import requests
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
+import jwt
+from pydantic import BaseModel, Field
 from starlette.responses import RedirectResponse
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -41,23 +48,275 @@ INGEST_WAIT_SECONDS = int(os.getenv("INGEST_WAIT_SECONDS", "30"))
 BLOODHOUND_MODE = os.getenv("BLOODHOUND_MODE", "local")
 API_TOKEN = os.getenv("API_TOKEN", "")
 
+JWT_SECRET = os.getenv("JWT_SECRET", "")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
+ADMIN_DEFAULT_PASSWORD = os.getenv("ADMIN_DEFAULT_PASSWORD", "")
+
+DB_PATH = ROOT / "config" / "toad_users.db"
+AVATARS_DIR = ROOT / "config" / "avatars"
+TAGS_FILE = ROOT / "config" / "tags.json"
+
+VALID_ROLES = {"admin", "user", "viewer"}
+
 MAX_PINGCASTLE_SIZE = 50 * 1024 * 1024
 MAX_SHARPHOUND_SIZE = 500 * 1024 * 1024
+MAX_AVATAR_SIZE = 2 * 1024 * 1024
 
 RATE_LIMIT_MAX = 120
 RATE_LIMIT_WINDOW = 60
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global JWT_SECRET
+    if not JWT_SECRET and not API_TOKEN:
+        JWT_SECRET = secrets.token_hex(32)
+        logger.critical("Aucune auth configuree (JWT_SECRET/API_TOKEN). JWT_SECRET ephemere genere.")
+        logger.critical("Les tokens ne survivront pas a un redemarrage. Configurez JWT_SECRET dans .env")
+    init_db()
+    ensure_default_admin()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 _job_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="toad-job")
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
+_token_blacklist: set[str] = set()
+
+
+class UserCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=64)
+    password: str = Field(..., min_length=8)
+    role: str = Field(default="viewer")
+
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = Field(None, min_length=3, max_length=64)
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class PasswordReset(BaseModel):
+    new_password: str = Field(..., min_length=8)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class TagCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+    color: str = Field(default="#4d9fff", pattern=r"^#[0-9a-fA-F]{6}$")
+
+
+class TagUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=50)
+    color: Optional[str] = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
+
+
+class ClientTagsUpdate(BaseModel):
+    tags: list[str]
+
+
+@contextmanager
+def get_db():
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def init_db():
+    with get_db() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'viewer',
+                created_at TEXT NOT NULL,
+                is_active INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+        conn.commit()
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(hours=JWT_EXPIRATION_HOURS))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def decode_token(token: str) -> dict:
+    return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+
+
+def db_get_user_by_username(conn, username: str) -> Optional[dict]:
+    row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    return dict(row) if row else None
+
+
+def db_get_user_by_id(conn, user_id: int) -> Optional[dict]:
+    row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def db_list_users(conn) -> list[dict]:
+    rows = conn.execute("SELECT id, username, role, created_at, is_active FROM users ORDER BY id").fetchall()
+    return [dict(r) for r in rows]
+
+
+def db_create_user(conn, username: str, password_hash: str, role: str) -> int:
+    now = datetime.now(timezone.utc).isoformat()
+    cur = conn.execute(
+        "INSERT INTO users (username, password_hash, role, created_at, is_active) VALUES (?, ?, ?, ?, 1)",
+        (username, password_hash, role, now),
+    )
+    return cur.lastrowid
+
+
+def db_update_user(conn, user_id: int, **fields):
+    allowed = {"username", "role", "is_active"}
+    updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
+    if not updates:
+        return
+    if "is_active" in updates:
+        updates["is_active"] = 1 if updates["is_active"] else 0
+    set_clause = ", ".join(f"{k} = ?" for k in updates)
+    values = list(updates.values()) + [user_id]
+    conn.execute(f"UPDATE users SET {set_clause} WHERE id = ?", values)
+
+
+def db_delete_user(conn, user_id: int):
+    conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+
+def db_change_password(conn, user_id: int, new_hash: str):
+    conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (new_hash, user_id))
+
+
+def db_count_users(conn) -> int:
+    return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+
+
+def ensure_default_admin():
+    with get_db() as conn:
+        if db_count_users(conn) > 0:
+            return
+        username = os.getenv("ADMIN_DEFAULT_USERNAME", "admin")
+        password = ADMIN_DEFAULT_PASSWORD
+        if not password or password == "admin":
+            password = secrets.token_urlsafe(16)
+            logger.warning("=" * 60)
+            logger.warning(f"Admin cree avec mot de passe aleatoire : {password}")
+            logger.warning("Changez-le immediatement apres la premiere connexion !")
+            logger.warning("=" * 60)
+        pw_hash = hash_password(password)
+        db_create_user(conn, username, pw_hash, "admin")
+        logger.info(f"Default admin user created: {username}")
+
+
+def get_current_user(request: Request) -> dict:
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token manquant")
+    token = auth_header[7:]
+
+    if token in _token_blacklist:
+        raise HTTPException(status_code=401, detail="Token revoque")
+
+    if JWT_SECRET:
+        try:
+            payload = decode_token(token)
+            user_id = payload.get("sub")
+            if user_id is None:
+                raise HTTPException(status_code=401, detail="Token invalide")
+            with get_db() as conn:
+                user = db_get_user_by_id(conn, int(user_id))
+            if not user:
+                raise HTTPException(status_code=401, detail="Utilisateur introuvable")
+            if not user["is_active"]:
+                raise HTTPException(status_code=401, detail="Compte désactivé")
+            return user
+        except jwt.InvalidTokenError:
+            if API_TOKEN and token == API_TOKEN:
+                with get_db() as conn:
+                    admin = conn.execute("SELECT * FROM users WHERE role = 'admin' LIMIT 1").fetchone()
+                    if admin:
+                        return dict(admin)
+                return {"id": 0, "username": "api-token", "role": "admin", "is_active": 1, "created_at": ""}
+            raise HTTPException(status_code=401, detail="Token invalide ou expiré")
+
+    if API_TOKEN and token == API_TOKEN:
+        return {"id": 0, "username": "api-token", "role": "admin", "is_active": 1, "created_at": ""}
+
+    raise HTTPException(status_code=401, detail="Non authentifié")
+
+
+def require_role(*roles: str):
+    def checker(user: dict = Depends(get_current_user)):
+        if user["role"] not in roles:
+            raise HTTPException(status_code=403, detail="Permissions insuffisantes")
+        return user
+    return checker
+
+
+def require_auth(user: dict = Depends(get_current_user)) -> dict:
+    return user
 
 
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
-    if API_TOKEN and request.url.path.startswith("/api/") and not request.url.path.startswith("/api/setup") and not request.url.path.startswith("/api/health"):
+    public_paths = ("/api/setup", "/api/health", "/api/auth/login")
+    path = request.url.path
+    # Allow avatar GET requests without auth
+    is_avatar_get = path.startswith("/api/users/") and path.endswith("/avatar") and request.method == "GET"
+    if path.startswith("/api/") and not any(path.startswith(p) for p in public_paths) and not is_avatar_get:
         auth_header = request.headers.get("Authorization", "")
-        if auth_header != f"Bearer {API_TOKEN}":
+        if not auth_header.startswith("Bearer "):
             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+        token = auth_header[7:]
+
+        if token in _token_blacklist:
+            return JSONResponse(status_code=401, content={"detail": "Token revoque"})
+
+        authenticated = False
+
+        if JWT_SECRET:
+            try:
+                payload = decode_token(token)
+                user_id = payload.get("sub")
+                if user_id is not None:
+                    with get_db() as conn:
+                        user = db_get_user_by_id(conn, int(user_id))
+                    if user and user["is_active"]:
+                        request.state.user = user
+                        authenticated = True
+            except (jwt.InvalidTokenError, ValueError, KeyError):
+                pass
+
+        if not authenticated and API_TOKEN and token == API_TOKEN:
+            request.state.user = {"id": 0, "username": "api-token", "role": "admin", "is_active": 1, "created_at": ""}
+            authenticated = True
+
+        if not authenticated:
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+
     return await call_next(request)
 
 
@@ -87,8 +346,9 @@ async def rate_limit_middleware(request: Request, call_next):
 async def setup_redirect_middleware(request: Request, call_next):
     if not is_setup_complete() and request.method == "GET":
         path = request.url.path
-        if not path.startswith("/setup") and not path.startswith("/api/setup") and not path.startswith("/api/health") and not path.startswith("/assets"):
-            return RedirectResponse("/setup")
+        if path.startswith("/api/") or path.startswith("/setup") or path.startswith("/assets"):
+            return await call_next(request)
+        return RedirectResponse("/setup")
     return await call_next(request)
 
 
@@ -112,6 +372,82 @@ def save_config(config: dict):
     config_file.write_text(
         json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8"
     )
+
+
+class SystemSettings(BaseModel):
+    bloodhound_url: Optional[str] = None
+    bloodhound_mode: Optional[str] = None
+    ingest_wait_seconds: Optional[int] = None
+    jwt_expiration_hours: Optional[int] = None
+    rate_limit_max: Optional[int] = None
+    rate_limit_window: Optional[int] = None
+    max_pingcastle_size: Optional[int] = None
+    max_sharphound_size: Optional[int] = None
+    timezone: Optional[str] = None
+    log_level: Optional[str] = None
+
+
+@app.get("/api/settings")
+def get_settings(admin: dict = Depends(require_role("admin"))):
+    config = get_config()
+    return {
+        "bloodhound_url": config.get("bloodhound_url", BLOODHOUND_URL),
+        "bloodhound_mode": config.get("bloodhound_mode", BLOODHOUND_MODE),
+        "ingest_wait_seconds": config.get("ingest_wait_seconds", INGEST_WAIT_SECONDS),
+        "jwt_expiration_hours": config.get("jwt_expiration_hours", JWT_EXPIRATION_HOURS),
+        "rate_limit_max": config.get("rate_limit_max", RATE_LIMIT_MAX),
+        "rate_limit_window": config.get("rate_limit_window", RATE_LIMIT_WINDOW),
+        "max_pingcastle_size": config.get("max_pingcastle_size", MAX_PINGCASTLE_SIZE),
+        "max_sharphound_size": config.get("max_sharphound_size", MAX_SHARPHOUND_SIZE),
+        "timezone": config.get("timezone", os.getenv("TZ", "Europe/Paris")),
+        "log_level": config.get("log_level", "INFO"),
+    }
+
+
+@app.put("/api/settings")
+def update_settings(settings: SystemSettings, admin: dict = Depends(require_role("admin"))):
+    config = get_config()
+    
+    if settings.bloodhound_url is not None:
+        config["bloodhound_url"] = settings.bloodhound_url
+    if settings.bloodhound_mode is not None:
+        if settings.bloodhound_mode not in ["local", "remote"]:
+            raise HTTPException(status_code=400, detail="Mode BloodHound invalide")
+        config["bloodhound_mode"] = settings.bloodhound_mode
+    if settings.ingest_wait_seconds is not None:
+        if settings.ingest_wait_seconds < 5 or settings.ingest_wait_seconds > 600:
+            raise HTTPException(status_code=400, detail="Timeout ingestion doit être entre 5 et 600 secondes")
+        config["ingest_wait_seconds"] = settings.ingest_wait_seconds
+    if settings.jwt_expiration_hours is not None:
+        if settings.jwt_expiration_hours < 1 or settings.jwt_expiration_hours > 720:
+            raise HTTPException(status_code=400, detail="Expiration JWT doit être entre 1 et 720 heures")
+        config["jwt_expiration_hours"] = settings.jwt_expiration_hours
+    if settings.rate_limit_max is not None:
+        if settings.rate_limit_max < 10 or settings.rate_limit_max > 10000:
+            raise HTTPException(status_code=400, detail="Rate limit max doit être entre 10 et 10000")
+        config["rate_limit_max"] = settings.rate_limit_max
+    if settings.rate_limit_window is not None:
+        if settings.rate_limit_window < 10 or settings.rate_limit_window > 3600:
+            raise HTTPException(status_code=400, detail="Rate limit window doit être entre 10 et 3600 secondes")
+        config["rate_limit_window"] = settings.rate_limit_window
+    if settings.max_pingcastle_size is not None:
+        if settings.max_pingcastle_size < 1048576 or settings.max_pingcastle_size > 524288000:
+            raise HTTPException(status_code=400, detail="Taille max PingCastle doit être entre 1 Mo et 500 Mo")
+        config["max_pingcastle_size"] = settings.max_pingcastle_size
+    if settings.max_sharphound_size is not None:
+        if settings.max_sharphound_size < 10485760 or settings.max_sharphound_size > 5242880000:
+            raise HTTPException(status_code=400, detail="Taille max SharpHound doit être entre 10 Mo et 5 Go")
+        config["max_sharphound_size"] = settings.max_sharphound_size
+    if settings.timezone is not None:
+        config["timezone"] = settings.timezone
+    if settings.log_level is not None:
+        if settings.log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+            raise HTTPException(status_code=400, detail="Niveau de log invalide")
+        config["log_level"] = settings.log_level
+    
+    save_config(config)
+    log_event("_system", "settings_updated")
+    return {"status": "ok", "message": "Paramètres mis à jour. Certains changements nécessitent un redémarrage."}
 
 
 # ─── Job system ───────────────────────────────────────────────────────────────
@@ -710,11 +1046,258 @@ def _ad_miner_background(job_id: str, clean_slug: str):
         job_error(job_id, str(e))
 
 
+# ─── Auth endpoints ───────────────────────────────────────────────────────────
+
+
+@app.post("/api/auth/login")
+def auth_login(body: LoginRequest):
+    if not JWT_SECRET:
+        raise HTTPException(status_code=503, detail="Authentification JWT non configurée")
+    with get_db() as conn:
+        user = db_get_user_by_username(conn, body.username)
+    if not user:
+        raise HTTPException(status_code=401, detail="Identifiants invalides")
+    if not verify_password(body.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Identifiants invalides")
+    if not user["is_active"]:
+        raise HTTPException(status_code=401, detail="Compte désactivé")
+    token = create_access_token({"sub": str(user["id"]), "username": user["username"], "role": user["role"]})
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user": {
+            "id": user["id"],
+            "username": user["username"],
+            "role": user["role"],
+        },
+    }
+
+
+@app.post("/api/auth/logout")
+def auth_logout(request: Request):
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        _token_blacklist.add(token)
+    return {"status": "ok", "message": "Deconnexion reussie"}
+
+
+@app.get("/api/auth/me")
+def auth_me(user: dict = Depends(get_current_user)):
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "role": user["role"],
+        "is_active": user["is_active"],
+        "created_at": user.get("created_at"),
+    }
+
+
+# ─── User management endpoints (admin only) ──────────────────────────────────
+
+
+@app.get("/api/users")
+def list_users(admin: dict = Depends(require_role("admin"))):
+    with get_db() as conn:
+        return db_list_users(conn)
+
+
+@app.post("/api/users")
+def create_user(body: UserCreate, admin: dict = Depends(require_role("admin"))):
+    if body.role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"Rôle invalide. Valeurs acceptées: {', '.join(sorted(VALID_ROLES))}")
+    with get_db() as conn:
+        existing = db_get_user_by_username(conn, body.username)
+        if existing:
+            raise HTTPException(status_code=409, detail="Nom d'utilisateur déjà pris")
+        pw_hash = hash_password(body.password)
+        user_id = db_create_user(conn, body.username, pw_hash, body.role)
+    return {"status": "ok", "id": user_id, "message": f"Utilisateur « {body.username} » créé."}
+
+
+@app.put("/api/users/{user_id}")
+def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_role("admin"))):
+    if body.role and body.role not in VALID_ROLES:
+        raise HTTPException(status_code=400, detail=f"Rôle invalide. Valeurs acceptées: {', '.join(sorted(VALID_ROLES))}")
+    with get_db() as conn:
+        user = db_get_user_by_id(conn, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        if body.username:
+            dup = db_get_user_by_username(conn, body.username)
+            if dup and dup["id"] != user_id:
+                raise HTTPException(status_code=409, detail="Nom d'utilisateur déjà pris")
+        db_update_user(conn, user_id, username=body.username, role=body.role, is_active=body.is_active)
+    return {"status": "ok", "message": "Utilisateur mis à jour."}
+
+
+@app.delete("/api/users/{user_id}")
+def delete_user(user_id: int, admin: dict = Depends(require_role("admin"))):
+    with get_db() as conn:
+        user = db_get_user_by_id(conn, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        if user["id"] == admin.get("id"):
+            raise HTTPException(status_code=400, detail="Impossible de supprimer votre propre compte")
+        db_delete_user(conn, user_id)
+    return {"status": "ok", "message": f"Utilisateur « {user['username']} » supprimé."}
+
+
+@app.post("/api/users/{user_id}/reset-password")
+def reset_password(user_id: int, body: PasswordReset, admin: dict = Depends(require_role("admin"))):
+    with get_db() as conn:
+        user = db_get_user_by_id(conn, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        new_hash = hash_password(body.new_password)
+        db_change_password(conn, user_id, new_hash)
+    return {"status": "ok", "message": "Mot de passe réinitialisé."}
+
+
+@app.post("/api/users/{user_id}/avatar")
+async def upload_avatar(user_id: int, avatar: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    if user["id"] != user_id and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Permissions insuffisantes")
+    with get_db() as conn:
+        target_user = db_get_user_by_id(conn, user_id)
+        if not target_user:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    filename = avatar.filename or ""
+    if not filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
+        raise HTTPException(status_code=400, detail="Format d'image non supporté (PNG, JPG, GIF uniquement)")
+    content = await avatar.read()
+    if len(content) > MAX_AVATAR_SIZE:
+        raise HTTPException(status_code=413, detail="Image trop volumineuse (max 2 Mo)")
+    AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+    avatar_path = AVATARS_DIR / f"{user_id}.png"
+    avatar_path.write_bytes(content)
+    return {"status": "ok", "message": "Avatar mis à jour."}
+
+
+@app.get("/api/users/{user_id}/avatar")
+def get_avatar(user_id: int):
+    avatar_path = AVATARS_DIR / f"{user_id}.png"
+    if not avatar_path.exists():
+        raise HTTPException(status_code=404, detail="Avatar introuvable")
+    return FileResponse(str(avatar_path), media_type="image/png")
+
+
+# ─── Tags management ─────────────────────────────────────────────────────────
+
+
+def load_tags() -> dict:
+    if TAGS_FILE.exists():
+        try:
+            return json.loads(TAGS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
+def save_tags(tags: dict):
+    TAGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    TAGS_FILE.write_text(
+        json.dumps(tags, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+@app.get("/api/tags")
+def list_tags(user: dict = Depends(require_role("admin", "user", "viewer"))):
+    return load_tags()
+
+
+@app.post("/api/tags")
+def create_tag(body: TagCreate, admin: dict = Depends(require_role("admin"))):
+    tags = load_tags()
+    slug = re.sub(r"[^a-z0-9]+", "-", body.name.lower()).strip("-")
+    if not slug:
+        raise HTTPException(status_code=400, detail="Nom de tag invalide")
+    if slug in tags:
+        raise HTTPException(status_code=409, detail="Ce tag existe déjà")
+    tags[slug] = {"name": body.name, "color": body.color}
+    save_tags(tags)
+    log_event("_system", f"tag_created slug={slug}")
+    return {"status": "ok", "slug": slug, "message": f"Tag « {body.name} » créé."}
+
+
+@app.put("/api/tags/{slug}")
+def update_tag(slug: str, body: TagUpdate, admin: dict = Depends(require_role("admin"))):
+    tags = load_tags()
+    if slug not in tags:
+        raise HTTPException(status_code=404, detail="Tag introuvable")
+    if body.name is not None:
+        tags[slug]["name"] = body.name
+    if body.color is not None:
+        tags[slug]["color"] = body.color
+    save_tags(tags)
+    log_event("_system", f"tag_updated slug={slug}")
+    return {"status": "ok", "message": "Tag mis à jour."}
+
+
+@app.delete("/api/tags/{slug}")
+def delete_tag(slug: str, admin: dict = Depends(require_role("admin"))):
+    tags = load_tags()
+    if slug not in tags:
+        raise HTTPException(status_code=404, detail="Tag introuvable")
+    tag_name = tags[slug]["name"]
+    del tags[slug]
+    save_tags(tags)
+    # Remove tag from all clients
+    if ROOT.exists():
+        for client_path in ROOT.iterdir():
+            if not client_path.is_dir() or client_path.name.startswith("_") or client_path.name == "config":
+                continue
+            metadata_file = client_path / "client.json"
+            if metadata_file.exists():
+                try:
+                    metadata = json.loads(metadata_file.read_text(encoding="utf-8"))
+                    if "tags" in metadata and slug in metadata["tags"]:
+                        metadata["tags"].remove(slug)
+                        metadata_file.write_text(
+                            json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8"
+                        )
+                except Exception:
+                    pass
+    log_event("_system", f"tag_deleted slug={slug}")
+    return {"status": "ok", "message": f"Tag « {tag_name} » supprimé."}
+
+
+@app.get("/api/clients/{slug}/tags")
+def get_client_tags(slug: str, user: dict = Depends(require_role("admin", "user", "viewer"))):
+    clean_slug = sanitize_slug(slug)
+    client_path = ROOT / clean_slug
+    if not client_path.exists():
+        raise HTTPException(status_code=404, detail="Client introuvable.")
+    metadata = read_client_metadata(client_path)
+    return metadata.get("tags", [])
+
+
+@app.put("/api/clients/{slug}/tags")
+def update_client_tags(slug: str, body: ClientTagsUpdate, user: dict = Depends(require_role("admin", "user"))):
+    clean_slug = sanitize_slug(slug)
+    client_path = ROOT / clean_slug
+    if not client_path.exists():
+        raise HTTPException(status_code=404, detail="Client introuvable.")
+    # Validate all tags exist
+    tags = load_tags()
+    for tag_slug in body.tags:
+        if tag_slug not in tags:
+            raise HTTPException(status_code=400, detail=f"Tag '{tag_slug}' inexistant")
+    metadata = read_client_metadata(client_path)
+    metadata["tags"] = body.tags
+    metadata_file = client_path / "client.json"
+    metadata_file.write_text(
+        json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    log_event(clean_slug, f"tags_updated tags={','.join(body.tags)}")
+    return {"status": "ok", "message": "Tags mis à jour."}
+
+
 # ─── API routes ───────────────────────────────────────────────────────────────
 
 
 @app.get("/api/audits")
-def audits():
+def audits(tag: Optional[str] = None, user: dict = Depends(require_role("admin", "user", "viewer"))):
     result = []
     if not ROOT.exists():
         return result
@@ -728,6 +1311,10 @@ def audits():
         ad_miner_index = client_path / "ad-miner" / "index.html"
         pingcastle_index = client_path / "pingcastle" / "index.html"
         metadata = read_client_metadata(client_path)
+        client_tags = metadata.get("tags", [])
+        # Filter by tag if specified
+        if tag and tag not in client_tags:
+            continue
         result.append(
             {
                 "slug": slug,
@@ -755,13 +1342,14 @@ def audits():
                     ),
                 },
                 "bloodhound_active": bh_active_slug == slug,
+                "tags": client_tags,
             }
         )
     return result
 
 
 @app.get("/api/bloodhound/status")
-def get_bloodhound_status():
+def get_bloodhound_status(user: dict = Depends(require_role("admin", "user", "viewer"))):
     return read_bloodhound_status()
 
 
@@ -771,7 +1359,7 @@ def health_check():
 
 
 @app.get("/api/jobs/{job_id}")
-def get_job(job_id: str):
+def get_job(job_id: str, user: dict = Depends(require_role("admin", "user", "viewer"))):
     now = time.time()
     with _jobs_lock:
         expired = [jid for jid, j in _jobs.items() if now - j.get("created_at", 0) > 3600]
@@ -783,7 +1371,7 @@ def get_job(job_id: str):
 
 
 @app.post("/api/clients")
-def create_client(name: str = Form(...), slug: str = Form(...)):
+def create_client(name: str = Form(...), slug: str = Form(...), user: dict = Depends(require_role("admin", "user"))):
     clean_slug = sanitize_slug(slug)
     clean_name = name.strip()
     if not clean_name:
@@ -802,7 +1390,7 @@ def create_client(name: str = Form(...), slug: str = Form(...)):
 
 
 @app.delete("/api/clients/{slug}")
-def delete_client(slug: str):
+def delete_client(slug: str, user: dict = Depends(require_role("admin", "user"))):
     clean_slug = sanitize_slug(slug)
     client_path = ROOT / clean_slug
     if not client_path.exists():
@@ -817,7 +1405,7 @@ def delete_client(slug: str):
 
 
 @app.post("/api/clients/{slug}/pingcastle")
-async def upload_pingcastle(slug: str, report: UploadFile = File(...)):
+async def upload_pingcastle(slug: str, report: UploadFile = File(...), user: dict = Depends(require_role("admin", "user"))):
     clean_slug = sanitize_slug(slug)
     client_path = ROOT / clean_slug
     if not client_path.exists():
@@ -867,7 +1455,7 @@ def cleanup_old_sharphound_files(client_path: Path):
 
 
 @app.post("/api/clients/{slug}/sharphound")
-async def upload_sharphound_only(slug: str, zip_file: UploadFile = File(...)):
+async def upload_sharphound_only(slug: str, zip_file: UploadFile = File(...), user: dict = Depends(require_role("admin", "user"))):
     clean_slug = sanitize_slug(slug)
     client_path = ROOT / clean_slug
     if not client_path.exists():
@@ -918,7 +1506,7 @@ async def upload_sharphound_only(slug: str, zip_file: UploadFile = File(...)):
 
 
 @app.get("/api/clients/{slug}/sharphound/files")
-def list_sharphound_files(slug: str):
+def list_sharphound_files(slug: str, user: dict = Depends(require_role("admin", "user", "viewer"))):
     clean_slug = sanitize_slug(slug)
     client_path = ROOT / clean_slug
     if not client_path.exists():
@@ -944,7 +1532,7 @@ def list_sharphound_files(slug: str):
 
 
 @app.get("/api/clients/{slug}/sharphound/download/{filename}")
-def download_sharphound(slug: str, filename: str):
+def download_sharphound(slug: str, filename: str, user: dict = Depends(require_role("admin", "user", "viewer"))):
     clean_slug = sanitize_slug(slug)
     if (
         not filename.lower().endswith(".zip")
@@ -962,7 +1550,7 @@ def download_sharphound(slug: str, filename: str):
 
 
 @app.post("/api/clients/{slug}/ad-miner/generate")
-def generate_ad_miner(slug: str):
+def generate_ad_miner(slug: str, user: dict = Depends(require_role("admin", "user"))):
     clean_slug = sanitize_slug(slug)
     client_path = ROOT / clean_slug
     if not client_path.exists():
@@ -978,6 +1566,7 @@ async def create_full_audit(
     slug: str = Form(...),
     pingcastle_report: UploadFile = File(...),
     sharphound_zip: UploadFile = File(...),
+    user: dict = Depends(require_role("admin", "user")),
 ):
     clean_slug = sanitize_slug(slug)
     clean_name = name.strip()
@@ -1016,7 +1605,7 @@ async def create_full_audit(
 
 
 @app.post("/api/bloodhound/reset")
-def reset_bloodhound():
+def reset_bloodhound(user: dict = Depends(require_role("admin"))):
     try:
         log_event("_system", "bloodhound_reset_started")
         down = run_bloodhound_compose(["down", "-v"])
