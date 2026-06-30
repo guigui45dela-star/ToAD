@@ -1051,7 +1051,7 @@ def reset_password(user_id: int, body: PasswordReset, admin: dict = Depends(requ
 
 
 @app.get("/api/audits")
-def audits():
+def audits(user: dict = Depends(require_role("admin", "user", "viewer"))):
     result = []
     if not ROOT.exists():
         return result
@@ -1098,7 +1098,7 @@ def audits():
 
 
 @app.get("/api/bloodhound/status")
-def get_bloodhound_status():
+def get_bloodhound_status(user: dict = Depends(require_role("admin", "user", "viewer"))):
     return read_bloodhound_status()
 
 
@@ -1108,7 +1108,7 @@ def health_check():
 
 
 @app.get("/api/jobs/{job_id}")
-def get_job(job_id: str):
+def get_job(job_id: str, user: dict = Depends(require_role("admin", "user", "viewer"))):
     now = time.time()
     with _jobs_lock:
         expired = [jid for jid, j in _jobs.items() if now - j.get("created_at", 0) > 3600]
@@ -1120,7 +1120,7 @@ def get_job(job_id: str):
 
 
 @app.post("/api/clients")
-def create_client(name: str = Form(...), slug: str = Form(...)):
+def create_client(name: str = Form(...), slug: str = Form(...), user: dict = Depends(require_role("admin", "user"))):
     clean_slug = sanitize_slug(slug)
     clean_name = name.strip()
     if not clean_name:
@@ -1139,7 +1139,7 @@ def create_client(name: str = Form(...), slug: str = Form(...)):
 
 
 @app.delete("/api/clients/{slug}")
-def delete_client(slug: str):
+def delete_client(slug: str, user: dict = Depends(require_role("admin", "user"))):
     clean_slug = sanitize_slug(slug)
     client_path = ROOT / clean_slug
     if not client_path.exists():
@@ -1154,7 +1154,7 @@ def delete_client(slug: str):
 
 
 @app.post("/api/clients/{slug}/pingcastle")
-async def upload_pingcastle(slug: str, report: UploadFile = File(...)):
+async def upload_pingcastle(slug: str, report: UploadFile = File(...), user: dict = Depends(require_role("admin", "user"))):
     clean_slug = sanitize_slug(slug)
     client_path = ROOT / clean_slug
     if not client_path.exists():
@@ -1204,7 +1204,7 @@ def cleanup_old_sharphound_files(client_path: Path):
 
 
 @app.post("/api/clients/{slug}/sharphound")
-async def upload_sharphound_only(slug: str, zip_file: UploadFile = File(...)):
+async def upload_sharphound_only(slug: str, zip_file: UploadFile = File(...), user: dict = Depends(require_role("admin", "user"))):
     clean_slug = sanitize_slug(slug)
     client_path = ROOT / clean_slug
     if not client_path.exists():
@@ -1255,7 +1255,7 @@ async def upload_sharphound_only(slug: str, zip_file: UploadFile = File(...)):
 
 
 @app.get("/api/clients/{slug}/sharphound/files")
-def list_sharphound_files(slug: str):
+def list_sharphound_files(slug: str, user: dict = Depends(require_role("admin", "user", "viewer"))):
     clean_slug = sanitize_slug(slug)
     client_path = ROOT / clean_slug
     if not client_path.exists():
@@ -1281,7 +1281,7 @@ def list_sharphound_files(slug: str):
 
 
 @app.get("/api/clients/{slug}/sharphound/download/{filename}")
-def download_sharphound(slug: str, filename: str):
+def download_sharphound(slug: str, filename: str, user: dict = Depends(require_role("admin", "user", "viewer"))):
     clean_slug = sanitize_slug(slug)
     if (
         not filename.lower().endswith(".zip")
@@ -1299,7 +1299,7 @@ def download_sharphound(slug: str, filename: str):
 
 
 @app.post("/api/clients/{slug}/ad-miner/generate")
-def generate_ad_miner(slug: str):
+def generate_ad_miner(slug: str, user: dict = Depends(require_role("admin", "user"))):
     clean_slug = sanitize_slug(slug)
     client_path = ROOT / clean_slug
     if not client_path.exists():
@@ -1315,6 +1315,7 @@ async def create_full_audit(
     slug: str = Form(...),
     pingcastle_report: UploadFile = File(...),
     sharphound_zip: UploadFile = File(...),
+    user: dict = Depends(require_role("admin", "user")),
 ):
     clean_slug = sanitize_slug(slug)
     clean_name = name.strip()
@@ -1353,7 +1354,7 @@ async def create_full_audit(
 
 
 @app.post("/api/bloodhound/reset")
-def reset_bloodhound():
+def reset_bloodhound(user: dict = Depends(require_role("admin"))):
     try:
         log_event("_system", "bloodhound_reset_started")
         down = run_bloodhound_compose(["down", "-v"])
