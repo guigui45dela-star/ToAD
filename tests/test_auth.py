@@ -28,9 +28,10 @@ TEST_DB = Path("/tmp/toad_test_auth.db")
 def setup_test_db(tmp_path, monkeypatch):
     db_path = tmp_path / "test_toad_users.db"
     monkeypatch.setattr("app.DB_PATH", db_path)
-    from app import init_db, ensure_default_admin, DB_PATH
+    from app import init_db, ensure_default_admin, DB_PATH, _token_blacklist
     init_db()
     ensure_default_admin()
+    _token_blacklist.clear()
     yield db_path
     if db_path.exists():
         db_path.unlink()
@@ -142,6 +143,15 @@ class TestAuthLogout:
     def test_logout(self, client, admin_headers):
         r = client.post("/api/auth/logout", headers=admin_headers)
         assert r.status_code == 200
+
+    def test_logout_invalidates_token(self, client, admin_token, admin_headers):
+        r = client.get("/api/auth/me", headers=admin_headers)
+        assert r.status_code == 200
+        r = client.post("/api/auth/logout", headers=admin_headers)
+        assert r.status_code == 200
+        r = client.get("/api/auth/me", headers=admin_headers)
+        assert r.status_code == 401
+        assert "revoque" in r.json()["detail"]
 
 
 class TestTokenValidation:
@@ -302,6 +312,34 @@ class TestRolePermissions:
 
         r = client.get("/api/audits", headers=viewer_headers)
         assert r.status_code == 200
+
+    def test_viewer_cannot_create_client(self, client, admin_headers):
+        _create_user(client, admin_headers, username="viewcreate", role="viewer")
+        r = client.post("/api/auth/login", json={"username": "viewcreate", "password": "testpass123"})
+        viewer_token = r.json()["access_token"]
+        viewer_headers = {"Authorization": f"Bearer {viewer_token}"}
+
+        from io import BytesIO
+        r = client.post("/api/clients", data={"name": "Test", "slug": "test"}, headers=viewer_headers)
+        assert r.status_code == 403
+
+    def test_viewer_cannot_reset_bloodhound(self, client, admin_headers):
+        _create_user(client, admin_headers, username="viewreset", role="viewer")
+        r = client.post("/api/auth/login", json={"username": "viewreset", "password": "testpass123"})
+        viewer_token = r.json()["access_token"]
+        viewer_headers = {"Authorization": f"Bearer {viewer_token}"}
+
+        r = client.post("/api/bloodhound/reset", headers=viewer_headers)
+        assert r.status_code == 403
+
+    def test_user_cannot_reset_bloodhound(self, client, admin_headers):
+        _create_user(client, admin_headers, username="userreset", role="user")
+        r = client.post("/api/auth/login", json={"username": "userreset", "password": "testpass123"})
+        user_token = r.json()["access_token"]
+        user_headers = {"Authorization": f"Bearer {user_token}"}
+
+        r = client.post("/api/bloodhound/reset", headers=user_headers)
+        assert r.status_code == 403
 
     def test_inactive_user_rejected(self, client, admin_headers):
         r = _create_user(client, admin_headers, username="deactivated")

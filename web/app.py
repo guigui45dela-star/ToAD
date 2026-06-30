@@ -78,6 +78,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 _job_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="toad-job")
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
+_token_blacklist: set[str] = set()
 
 
 class UserCreate(BaseModel):
@@ -219,6 +220,9 @@ def get_current_user(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Token manquant")
     token = auth_header[7:]
 
+    if token in _token_blacklist:
+        raise HTTPException(status_code=401, detail="Token revoque")
+
     if JWT_SECRET:
         try:
             payload = decode_token(token)
@@ -267,6 +271,9 @@ async def auth_middleware(request: Request, call_next):
         if not auth_header.startswith("Bearer "):
             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
         token = auth_header[7:]
+
+        if token in _token_blacklist:
+            return JSONResponse(status_code=401, content={"detail": "Token revoque"})
 
         authenticated = False
 
@@ -971,8 +978,12 @@ def auth_login(body: LoginRequest):
 
 
 @app.post("/api/auth/logout")
-def auth_logout():
-    return {"status": "ok", "message": "Déconnexion réussie"}
+def auth_logout(request: Request):
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        _token_blacklist.add(token)
+    return {"status": "ok", "message": "Deconnexion reussie"}
 
 
 @app.get("/api/auth/me")
