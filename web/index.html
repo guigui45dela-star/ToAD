@@ -262,7 +262,13 @@ label {
 
 input[type="text"],
 input[type="search"],
-select {
+input[type="password"],
+input[type="number"],
+input[type="email"],
+input[type="url"],
+input[type="tel"],
+select,
+textarea {
   width: 100%;
   background: var(--card-alt);
   border: 1px solid var(--border);
@@ -272,14 +278,22 @@ select {
   font-size: 14px;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
 }
 input[type="text"]:focus,
 input[type="search"]:focus,
-select:focus {
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus,
+input[type="url"]:focus,
+input[type="tel"]:focus,
+select:focus,
+textarea:focus {
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(77,159,255,0.15);
 }
-input::placeholder { color: var(--dim); }
+input::placeholder,
+textarea::placeholder { color: var(--dim); }
 select option { background: var(--card); color: var(--text); }
 
 input[type="file"] {
@@ -291,9 +305,28 @@ input[type="file"] {
   color: var(--muted);
   font-size: 13px;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, color 0.15s;
+  font-family: inherit;
 }
-input[type="file"]:hover { border-color: var(--blue); color: var(--text); }
+input[type="file"]:hover { 
+  border-color: var(--blue); 
+  color: var(--text); 
+}
+input[type="file"]::file-selector-button {
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 10px;
+  transition: background 0.15s;
+}
+input[type="file"]::file-selector-button:hover {
+  background: var(--blue-h);
+}
 
 /* ── Buttons ── */
 .btn {
@@ -1015,6 +1048,33 @@ input[type="color"] {
   cursor: pointer;
   padding: 2px;
 }
+
+.tag-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.15s;
+  user-select: none;
+}
+.tag-toggle:hover {
+  opacity: 0.85;
+}
+.tag-toggle.selected {
+  border-color: currentColor;
+  box-shadow: 0 0 0 1px currentColor;
+}
+.tag-toggle-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 </style>
 </head>
 <body>
@@ -1373,6 +1433,16 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
       <div id="modal-sh-dl-list"><span style="color:var(--dim);font-size:13px">Chargement...</span></div>
     </div>
 
+    <!-- Tags -->
+    <div class="modal-section">
+      <div class="modal-section-title">Tags</div>
+      <p class="modal-hint">Organisez ce client avec des tags</p>
+      <div id="modal-client-tags" style="display:flex;flex-wrap:wrap;gap:8px">
+        <span style="color:var(--dim);font-size:13px">Chargement...</span>
+      </div>
+      <div class="modal-status" id="modal-tags-status"></div>
+    </div>
+
     <!-- Zone dangereuse -->
     <div class="modal-section danger">
       <div class="modal-section-title">Zone dangereuse</div>
@@ -1692,6 +1762,7 @@ async function doLogin() {
 }
 
 function doLogout() {
+  if (!confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) return;
   localStorage.removeItem('toad_token');
   currentUser = null;
   showLogin();
@@ -1885,6 +1956,7 @@ function openClientModal(slug, name) {
   setModalStatus('modal-sh-status', '');
   setModalStatus('modal-am-status', '');
   setModalStatus('modal-del-status', '');
+  setModalStatus('modal-tags-status', '');
 
   // Afficher un avertissement si BH a des données d'un autre client
   const warn = document.getElementById('modal-bh-warning');
@@ -1897,6 +1969,7 @@ function openClientModal(slug, name) {
 
   openModal('modal-client');
   loadSharpHoundFiles(slug);
+  loadClientTags(slug);
 }
 
 // ── Load data ─────────────────────────────────────────────────────────────
@@ -2424,6 +2497,70 @@ async function loadTags() {
     renderTagFilterBar();
   } catch (e) {
     console.warn('Failed to load tags', e);
+  }
+}
+
+async function loadClientTags(slug) {
+  const container = document.getElementById('modal-client-tags');
+  container.innerHTML = '<span style="color:var(--dim);font-size:13px">Chargement...</span>';
+  
+  try {
+    const [tagsR, clientTagsR] = await Promise.all([
+      authFetch('/api/tags'),
+      authFetch('/api/clients/' + slug + '/tags')
+    ]);
+    
+    allTags = await tagsR.json();
+    const clientTags = await clientTagsR.json();
+    
+    if (Object.keys(allTags).length === 0) {
+      container.innerHTML = '<span style="color:var(--dim);font-size:13px">Aucun tag disponible. Créez-en un dans l\'administration.</span>';
+      return;
+    }
+    
+    let html = '';
+    for (const [slug, tag] of Object.entries(allTags)) {
+      const isSelected = clientTags.includes(slug);
+      html += `<span class="tag-toggle ${isSelected ? 'selected' : ''}" 
+                    style="background:${tag.color}22;color:${tag.color}" 
+                    onclick="toggleClientTag('${slug}')">
+                <span class="tag-toggle-dot" style="background:${tag.color}"></span>
+                ${tag.name}
+              </span>`;
+    }
+    container.innerHTML = html;
+  } catch (e) {
+    container.innerHTML = '<span style="color:var(--red);font-size:13px">Erreur de chargement</span>';
+  }
+}
+
+async function toggleClientTag(tagSlug) {
+  if (!modalSlug) return;
+  
+  try {
+    const r = await authFetch('/api/clients/' + modalSlug + '/tags');
+    const currentTags = await r.json();
+    
+    const newTags = currentTags.includes(tagSlug)
+      ? currentTags.filter(t => t !== tagSlug)
+      : [...currentTags, tagSlug];
+    
+    const updateR = await authFetch('/api/clients/' + modalSlug + '/tags', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tags: newTags })
+    });
+    
+    if (updateR.ok) {
+      setModalStatus('modal-tags-status', 'Tags mis à jour', 'success');
+      loadClientTags(modalSlug);
+      loadAudits();
+    } else {
+      const d = await updateR.json();
+      setModalStatus('modal-tags-status', d.detail || 'Erreur', 'error');
+    }
+  } catch (e) {
+    setModalStatus('modal-tags-status', 'Erreur: ' + e.message, 'error');
   }
 }
 
