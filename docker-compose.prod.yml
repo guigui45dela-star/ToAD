@@ -1,0 +1,32 @@
+services:
+  audit-ad-web:
+    image: audit-ad-toad-web:latest
+    container_name: audit-ad-web
+    restart: unless-stopped
+    ports:
+      - "${TOAD_PORT:-9100}:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      TZ: "${TZ:-Europe/Paris}"
+      BLOODHOUND_URL: "http://host.docker.internal:8080"
+      BLOODHOUND_USERNAME: "${BLOODHOUND_USERNAME:-admin}"
+      BLOODHOUND_PASSWORD: "${BLOODHOUND_PASSWORD:?BLOODHOUND_PASSWORD is required}"
+      NEO4J_URL: "bolt://host.docker.internal:7687"
+      NEO4J_USER: "${NEO4J_USER:-neo4j}"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD:?NEO4J_PASSWORD is required}"
+      INGEST_WAIT_SECONDS: "${INGEST_WAIT_SECONDS:-30}"
+      BLOODHOUND_MODE: "${BLOODHOUND_MODE:-local}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
+      JWT_EXPIRATION_HOURS: "${JWT_EXPIRATION_HOURS:-24}"
+      ADMIN_DEFAULT_PASSWORD: "${ADMIN_DEFAULT_PASSWORD:-}"
+      ADMIN_DEFAULT_USERNAME: "${ADMIN_DEFAULT_USERNAME:-admin}"
+      API_TOKEN: "${API_TOKEN:-}"
+    volumes:
+      - ./web:/src:ro
+      - ./web/app.py:/app/app.py:ro
+      - ./clients:/data:rw
+      - /opt/AD_Miner:/ad_miner_src:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
