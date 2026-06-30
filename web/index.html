@@ -788,6 +788,129 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 }
 
 .rappel-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+/* ── Administration ─────────────────────────────────────────────────────── */
+.admin-btn {
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: none;
+}
+.admin-btn:hover { background: var(--blue-h); }
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--card-alt);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.user-avatar:hover {
+  border-color: var(--blue);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+.admin-table th,
+.admin-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.admin-table th {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.admin-table tr:hover {
+  background: var(--card-alt);
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.role-badge.admin {
+  background: rgba(255,82,82,0.18);
+  color: var(--red);
+}
+.role-badge.user {
+  background: rgba(77,159,255,0.18);
+  color: var(--blue);
+}
+.role-badge.viewer {
+  background: rgba(138,170,208,0.18);
+  color: var(--muted);
+}
+
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.status-dot.active {
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(45,214,110,0.6);
+}
+.status-dot.inactive {
+  background: var(--dim);
+}
+
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.avatar-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--card-alt);
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--muted);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 </style>
 </head>
 <body>
@@ -828,9 +951,11 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
     <div class="stat-pill"><span>PingCastle</span><strong id="stat-pingcastle">—</strong></div>
     <div class="stat-pill"><span>AD-Miner</span><strong id="stat-adminer">—</strong></div>
     <div class="user-badge" id="user-badge" style="display:none">
+      <div class="user-avatar" id="user-avatar" onclick="openProfileModal()" title="Mon profil"></div>
       <strong id="user-name"></strong>
       <button class="btn-logout" onclick="doLogout()">Deconnexion</button>
     </div>
+    <button class="admin-btn" id="admin-btn" onclick="openAdminModal()">Administration</button>
     <button class="btn btn-ghost btn-sm" onclick="openModal('modal-rappel')">Rappel</button>
   </div>
 </header>
@@ -1154,6 +1279,122 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
   </div>
 </div>
 
+<!-- ── Modal : Administration ────────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-admin" onclick="closeModalOnOverlay(event,'modal-admin')">
+  <div class="modal" style="max-width:800px">
+    <div class="modal-header">
+      <div class="modal-title">Administration</div>
+      <button class="modal-close" onclick="closeModal('modal-admin')">x</button>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Utilisateurs</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <p class="modal-hint" style="margin:0">Gérez les utilisateurs et leurs permissions</p>
+        <button class="btn btn-blue btn-sm" onclick="openUserFormModal()">Nouvel utilisateur</button>
+      </div>
+      <div id="users-table-container">
+        <span style="color:var(--dim);font-size:13px">Chargement...</span>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Paramètres système</div>
+      <p class="modal-hint">Configuration globale de la plateforme (à venir)</p>
+      <button class="btn btn-ghost btn-sm" disabled>Bientôt disponible</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal : Formulaire utilisateur ────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-user-form" onclick="closeModalOnOverlay(event,'modal-user-form')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div class="modal-title" id="user-form-title">Nouvel utilisateur</div>
+      <button class="modal-close" onclick="closeModal('modal-user-form')">x</button>
+    </div>
+
+    <div class="avatar-upload">
+      <div class="avatar-preview" id="avatar-preview">?</div>
+      <div style="flex:1">
+        <label class="form-label">Image de profil</label>
+        <input type="file" id="avatar-file" accept="image/*" style="font-size:13px">
+        <div class="form-hint">JPG, PNG ou GIF (max 2 Mo)</div>
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom:14px">
+      <label>Nom d'utilisateur</label>
+      <input id="uf-username" type="text" placeholder="jean.dupont" autocomplete="off">
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>Mot de passe <span id="uf-password-hint" style="font-weight:400;text-transform:none;letter-spacing:0">(min 8 caractères)</span></label>
+      <input id="uf-password" type="password" placeholder="Mot de passe" autocomplete="new-password">
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>Rôle</label>
+      <select id="uf-role">
+        <option value="viewer">Viewer (lecture seule)</option>
+        <option value="user">User (créer/modifier audits)</option>
+        <option value="admin">Admin (tous les droits)</option>
+      </select>
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0;font-weight:400">
+        <input type="checkbox" id="uf-active" checked>
+        Compte actif
+      </label>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-user-form')">Annuler</button>
+      <button class="btn btn-blue" id="uf-submit-btn" onclick="submitUserForm()">Créer</button>
+    </div>
+    <div class="modal-status" id="uf-status"></div>
+  </div>
+</div>
+
+<!-- ── Modal : Profil utilisateur ────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-profile" onclick="closeModalOnOverlay(event,'modal-profile')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div class="modal-title">Mon profil</div>
+      <button class="modal-close" onclick="closeModal('modal-profile')">x</button>
+    </div>
+
+    <div class="avatar-upload">
+      <div class="avatar-preview" id="profile-avatar-preview">?</div>
+      <div style="flex:1">
+        <label class="form-label">Image de profil</label>
+        <input type="file" id="profile-avatar-file" accept="image/*" style="font-size:13px">
+        <div class="form-hint">JPG, PNG ou GIF (max 2 Mo)</div>
+        <button class="btn btn-blue btn-sm" style="margin-top:8px" onclick="uploadProfileAvatar()">Modifier l'image</button>
+      </div>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:16px">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:4px">Utilisateur</div>
+      <div style="font-size:15px;font-weight:600" id="profile-username"></div>
+      <div style="font-size:13px;color:var(--muted);margin-top:8px;margin-bottom:4px">Rôle</div>
+      <div id="profile-role"></div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Changer mon mot de passe</div>
+      <div class="field" style="margin-bottom:12px">
+        <label>Nouveau mot de passe</label>
+        <input id="profile-new-password" type="password" placeholder="Min 8 caractères" autocomplete="new-password">
+      </div>
+      <div class="field" style="margin-bottom:14px">
+        <label>Confirmer le mot de passe</label>
+        <input id="profile-confirm-password" type="password" placeholder="Confirmer" autocomplete="new-password">
+      </div>
+      <button class="btn btn-blue btn-sm" onclick="changeOwnPassword()">Changer le mot de passe</button>
+      <div class="modal-status" id="profile-password-status"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Scripts ──────────────────────────────────────────────────────────── -->
 <script>
 let audits = [];
@@ -1230,11 +1471,23 @@ function doLogout() {
 function updateUserBadge() {
   const badge = document.getElementById('user-badge');
   const nameEl = document.getElementById('user-name');
+  const avatarEl = document.getElementById('user-avatar');
+  const adminBtn = document.getElementById('admin-btn');
   if (currentUser) {
     badge.style.display = 'flex';
     nameEl.textContent = currentUser.username;
+    // Avatar
+    const initials = currentUser.username.substring(0, 2).toUpperCase();
+    avatarEl.innerHTML = '<img src="/api/users/' + currentUser.id + '/avatar" onerror="this.style.display=\'none\';this.parentNode.textContent=\'' + initials + '\'">';
+    // Admin button
+    if (currentUser.role === 'admin') {
+      adminBtn.style.display = 'inline-block';
+    } else {
+      adminBtn.style.display = 'none';
+    }
   } else {
     badge.style.display = 'none';
+    adminBtn.style.display = 'none';
   }
 }
 
@@ -1741,6 +1994,243 @@ function showRappel(id, title) {
 function backToRappelMenu() {
   document.getElementById('rappel-content').style.display = 'none';
   document.getElementById('rappel-menu').style.display = 'block';
+}
+
+// ── Administration ────────────────────────────────────────────────────────
+
+let editingUserId = null;
+let allUsers = [];
+
+async function openAdminModal() {
+  if (!currentUser || currentUser.role !== 'admin') return;
+  openModal('modal-admin');
+  await loadUsers();
+}
+
+async function loadUsers() {
+  const container = document.getElementById('users-table-container');
+  container.innerHTML = '<span style="color:var(--dim);font-size:13px">Chargement...</span>';
+  try {
+    const r = await authFetch('/api/users');
+    allUsers = await r.json();
+    renderUsersTable(allUsers);
+  } catch (e) {
+    container.innerHTML = '<span style="color:var(--red);font-size:13px">Erreur: ' + esc(String(e)) + '</span>';
+  }
+}
+
+function renderUsersTable(users) {
+  const container = document.getElementById('users-table-container');
+  if (!users.length) {
+    container.innerHTML = '<span style="color:var(--dim);font-size:13px">Aucun utilisateur</span>';
+    return;
+  }
+  let html = '<table class="admin-table"><thead><tr>';
+  html += '<th></th><th>Utilisateur</th><th>Rôle</th><th>Statut</th><th>Créé le</th><th>Actions</th>';
+  html += '</tr></thead><tbody>';
+  for (const u of users) {
+    const avatarUrl = '/api/users/' + u.id + '/avatar';
+    const initials = u.username.substring(0, 2).toUpperCase();
+    const statusClass = u.is_active ? 'active' : 'inactive';
+    const statusText = u.is_active ? 'Actif' : 'Inactif';
+    const createdDate = u.created_at ? u.created_at.substring(0, 10) : '-';
+    const isSelf = currentUser && currentUser.id === u.id;
+
+    html += '<tr>';
+    html += '<td><div class="user-avatar" style="width:28px;height:28px;font-size:11px"><img src="' + avatarUrl + '" onerror="this.style.display=\'none\';this.parentNode.textContent=\'' + initials + '\'"></div></td>';
+    html += '<td style="font-weight:600">' + esc(u.username) + (isSelf ? ' <span style="color:var(--dim);font-weight:400;font-size:12px">(vous)</span>' : '') + '</td>';
+    html += '<td><span class="role-badge ' + u.role + '">' + esc(u.role) + '</span></td>';
+    html += '<td><span class="status-dot ' + statusClass + '"></span>' + statusText + '</td>';
+    html += '<td style="color:var(--dim);font-size:13px">' + esc(createdDate) + '</td>';
+    html += '<td>';
+    html += '<button class="btn btn-ghost btn-sm" onclick="editUser(' + u.id + ')" style="margin-right:4px">Modifier</button>';
+    if (!isSelf) {
+      html += '<button class="btn btn-red btn-sm" onclick="deleteUser(' + u.id + ', \'' + esc(u.username) + '\')">Supprimer</button>';
+    }
+    html += '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function openUserFormModal(userId) {
+  editingUserId = userId || null;
+  const title = document.getElementById('user-form-title');
+  const submitBtn = document.getElementById('uf-submit-btn');
+  const passwordField = document.getElementById('uf-password');
+  const passwordHint = document.getElementById('uf-password-hint');
+  const status = document.getElementById('uf-status');
+  status.textContent = '';
+
+  if (editingUserId) {
+    const user = allUsers.find(u => u.id === editingUserId);
+    if (!user) return;
+    title.textContent = 'Modifier ' + user.username;
+    submitBtn.textContent = 'Enregistrer';
+    document.getElementById('uf-username').value = user.username;
+    document.getElementById('uf-role').value = user.role;
+    document.getElementById('uf-active').checked = !!user.is_active;
+    passwordField.value = '';
+    passwordField.placeholder = 'Laisser vide pour ne pas changer';
+    passwordHint.textContent = '(laisser vide pour ne pas changer)';
+    // Load avatar
+    const avatarPreview = document.getElementById('avatar-preview');
+    avatarPreview.innerHTML = '<img src="/api/users/' + user.id + '/avatar" onerror="this.style.display=\'none\';this.parentNode.textContent=\'' + user.username.substring(0,2).toUpperCase() + '\'">';
+  } else {
+    title.textContent = 'Nouvel utilisateur';
+    submitBtn.textContent = 'Créer';
+    document.getElementById('uf-username').value = '';
+    document.getElementById('uf-password').value = '';
+    document.getElementById('uf-role').value = 'viewer';
+    document.getElementById('uf-active').checked = true;
+    passwordField.placeholder = 'Mot de passe';
+    passwordHint.textContent = '(min 8 caractères)';
+    document.getElementById('avatar-preview').textContent = '?';
+    document.getElementById('avatar-file').value = '';
+  }
+  openModal('modal-user-form');
+}
+
+function editUser(userId) {
+  openUserFormModal(userId);
+}
+
+async function submitUserForm() {
+  const username = document.getElementById('uf-username').value.trim();
+  const password = document.getElementById('uf-password').value;
+  const role = document.getElementById('uf-role').value;
+  const isActive = document.getElementById('uf-active').checked;
+  const avatarFile = document.getElementById('avatar-file').files[0];
+  const status = document.getElementById('uf-status');
+
+  if (!username) { setModalStatus('uf-status', 'Nom d\'utilisateur requis.', 'error'); return; }
+  if (!editingUserId && !password) { setModalStatus('uf-status', 'Mot de passe requis.', 'error'); return; }
+  if (password && password.length < 8) { setModalStatus('uf-status', 'Mot de passe trop court (min 8).', 'error'); return; }
+
+  status.textContent = editingUserId ? 'Modification...' : 'Création...';
+  status.className = 'modal-status info';
+
+  try {
+    let r;
+    if (editingUserId) {
+      const body = { username, role, is_active: isActive };
+      r = await authFetch('/api/users/' + editingUserId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { const d = await r.json(); setModalStatus('uf-status', d.detail || 'Erreur', 'error'); return; }
+      // Upload avatar if provided
+      if (avatarFile) {
+        const fd = new FormData();
+        fd.append('avatar', avatarFile);
+        r = await authFetch('/api/users/' + editingUserId + '/avatar', { method: 'POST', body: fd });
+        if (!r.ok) { const d = await r.json(); setModalStatus('uf-status', d.detail || 'Erreur avatar', 'error'); return; }
+      }
+      // Reset password if provided
+      if (password) {
+        r = await authFetch('/api/users/' + editingUserId + '/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: password }) });
+        if (!r.ok) { const d = await r.json(); setModalStatus('uf-status', d.detail || 'Erreur mot de passe', 'error'); return; }
+      }
+      showToast('Utilisateur modifié', username + ' mis à jour.', 'success');
+    } else {
+      const body = { username, password, role };
+      r = await authFetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) { const d = await r.json(); setModalStatus('uf-status', d.detail || 'Erreur', 'error'); return; }
+      const d = await r.json();
+      const newUserId = d.id;
+      // Upload avatar if provided
+      if (avatarFile) {
+        const fd = new FormData();
+        fd.append('avatar', avatarFile);
+        r = await authFetch('/api/users/' + newUserId + '/avatar', { method: 'POST', body: fd });
+        if (!r.ok) { /* Non-critical, just warn */ console.warn('Avatar upload failed'); }
+      }
+      showToast('Utilisateur créé', username + ' créé avec succès.', 'success');
+    }
+    closeModal('modal-user-form');
+    await loadUsers();
+  } catch (e) {
+    setModalStatus('uf-status', String(e), 'error');
+  }
+}
+
+async function deleteUser(userId, username) {
+  if (!confirm('Supprimer définitivement l\'utilisateur « ' + username + ' » ?')) return;
+  try {
+    const r = await authFetch('/api/users/' + userId, { method: 'DELETE' });
+    if (!r.ok) { const d = await r.json(); showToast('Erreur', d.detail || 'Impossible de supprimer', 'error'); return; }
+    showToast('Utilisateur supprimé', username + ' supprimé.', 'info');
+    await loadUsers();
+  } catch (e) {
+    showToast('Erreur', String(e), 'error');
+  }
+}
+
+// ── Profil utilisateur ────────────────────────────────────────────────────
+
+function openProfileModal() {
+  if (!currentUser) return;
+  document.getElementById('profile-username').textContent = currentUser.username;
+  const roleBadge = document.getElementById('profile-role');
+  roleBadge.innerHTML = '<span class="role-badge ' + currentUser.role + '">' + currentUser.role + '</span>';
+  document.getElementById('profile-new-password').value = '';
+  document.getElementById('profile-confirm-password').value = '';
+  setModalStatus('profile-password-status', '', '');
+  // Load avatar
+  const avatarPreview = document.getElementById('profile-avatar-preview');
+  avatarPreview.innerHTML = '<img src="/api/users/' + currentUser.id + '/avatar" onerror="this.style.display=\'none\';this.parentNode.textContent=\'' + currentUser.username.substring(0,2).toUpperCase() + '\'">';
+  document.getElementById('profile-avatar-file').value = '';
+  openModal('modal-profile');
+}
+
+async function uploadProfileAvatar() {
+  const file = document.getElementById('profile-avatar-file').files[0];
+  if (!file) { setModalStatus('profile-password-status', 'Sélectionnez une image.', 'error'); return; }
+  const fd = new FormData();
+  fd.append('avatar', file);
+  setModalStatus('profile-password-status', 'Upload...', 'info');
+  try {
+    const r = await authFetch('/api/users/' + currentUser.id + '/avatar', { method: 'POST', body: fd });
+    if (!r.ok) { const d = await r.json(); setModalStatus('profile-password-status', d.detail || 'Erreur', 'error'); return; }
+    setModalStatus('profile-password-status', 'Image mise à jour.', 'success');
+    // Refresh avatar in header
+    await refreshCurrentUser();
+    // Refresh preview
+    const avatarPreview = document.getElementById('profile-avatar-preview');
+    avatarPreview.innerHTML = '<img src="/api/users/' + currentUser.id + '/avatar?t=' + Date.now() + '">';
+    showToast('Avatar mis à jour', 'Image de profil modifiée.', 'success');
+  } catch (e) {
+    setModalStatus('profile-password-status', String(e), 'error');
+  }
+}
+
+async function changeOwnPassword() {
+  const newPw = document.getElementById('profile-new-password').value;
+  const confirmPw = document.getElementById('profile-confirm-password').value;
+  if (!newPw || newPw.length < 8) { setModalStatus('profile-password-status', 'Mot de passe trop court (min 8).', 'error'); return; }
+  if (newPw !== confirmPw) { setModalStatus('profile-password-status', 'Les mots de passe ne correspondent pas.', 'error'); return; }
+  setModalStatus('profile-password-status', 'Modification...', 'info');
+  try {
+    const r = await authFetch('/api/users/' + currentUser.id + '/reset-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ new_password: newPw }) });
+    if (!r.ok) { const d = await r.json(); setModalStatus('profile-password-status', d.detail || 'Erreur', 'error'); return; }
+    setModalStatus('profile-password-status', 'Mot de passe changé. Reconnexion requise.', 'success');
+    showToast('Mot de passe changé', 'Vous devez vous reconnecter.', 'info');
+    setTimeout(() => { doLogout(); }, 2000);
+  } catch (e) {
+    setModalStatus('profile-password-status', String(e), 'error');
+  }
+}
+
+async function refreshCurrentUser() {
+  try {
+    const r = await fetch('/api/auth/me', {
+      headers: { 'Authorization': 'Bearer ' + localStorage.getItem('toad_token') },
+    });
+    if (r.ok) {
+      currentUser = await r.json();
+      updateUserBadge();
+    }
+  } catch (e) {
+    console.warn('Failed to refresh user', e);
+  }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────

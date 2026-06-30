@@ -54,11 +54,13 @@ JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
 ADMIN_DEFAULT_PASSWORD = os.getenv("ADMIN_DEFAULT_PASSWORD", "")
 
 DB_PATH = ROOT / "config" / "toad_users.db"
+AVATARS_DIR = ROOT / "config" / "avatars"
 
 VALID_ROLES = {"admin", "user", "viewer"}
 
 MAX_PINGCASTLE_SIZE = 50 * 1024 * 1024
 MAX_SHARPHOUND_SIZE = 500 * 1024 * 1024
+MAX_AVATAR_SIZE = 2 * 1024 * 1024
 
 RATE_LIMIT_MAX = 120
 RATE_LIMIT_WINDOW = 60
@@ -266,7 +268,10 @@ def require_auth(user: dict = Depends(get_current_user)) -> dict:
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     public_paths = ("/api/setup", "/api/health", "/api/auth/login")
-    if request.url.path.startswith("/api/") and not any(request.url.path.startswith(p) for p in public_paths):
+    path = request.url.path
+    # Allow avatar GET requests without auth
+    is_avatar_get = path.startswith("/api/users/") and path.endswith("/avatar") and request.method == "GET"
+    if path.startswith("/api/") and not any(path.startswith(p) for p in public_paths) and not is_avatar_get:
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
             return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
@@ -1056,6 +1061,34 @@ def reset_password(user_id: int, body: PasswordReset, admin: dict = Depends(requ
         new_hash = hash_password(body.new_password)
         db_change_password(conn, user_id, new_hash)
     return {"status": "ok", "message": "Mot de passe réinitialisé."}
+
+
+@app.post("/api/users/{user_id}/avatar")
+async def upload_avatar(user_id: int, avatar: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    if user["id"] != user_id and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Permissions insuffisantes")
+    with get_db() as conn:
+        target_user = db_get_user_by_id(conn, user_id)
+        if not target_user:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    filename = avatar.filename or ""
+    if not filename.lower().endswith((".png", ".jpg", ".jpeg", ".gif")):
+        raise HTTPException(status_code=400, detail="Format d'image non supporté (PNG, JPG, GIF uniquement)")
+    content = await avatar.read()
+    if len(content) > MAX_AVATAR_SIZE:
+        raise HTTPException(status_code=413, detail="Image trop volumineuse (max 2 Mo)")
+    AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+    avatar_path = AVATARS_DIR / f"{user_id}.png"
+    avatar_path.write_bytes(content)
+    return {"status": "ok", "message": "Avatar mis à jour."}
+
+
+@app.get("/api/users/{user_id}/avatar")
+def get_avatar(user_id: int):
+    avatar_path = AVATARS_DIR / f"{user_id}.png"
+    if not avatar_path.exists():
+        raise HTTPException(status_code=404, detail="Avatar introuvable")
+    return FileResponse(str(avatar_path), media_type="image/png")
 
 
 # ─── API routes ───────────────────────────────────────────────────────────────
