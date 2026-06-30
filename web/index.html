@@ -1380,63 +1380,79 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
 
 <!-- ── Modal : Actions client ────────────────────────────────────────────── -->
 <div class="modal-overlay" id="modal-client" onclick="closeModalOnOverlay(event,'modal-client')">
-  <div class="modal">
+  <div class="modal" style="max-width:680px">
     <div class="modal-header">
       <div class="modal-title" id="modal-client-title">Actions</div>
       <button class="modal-close" onclick="closeModal('modal-client')">x</button>
     </div>
 
-    <!-- PingCastle -->
+    <!-- Section : Imports -->
     <div class="modal-section">
-      <div class="modal-section-title">Importer PingCastle</div>
-      <div class="field">
-        <label>Fichier HTML</label>
-        <input id="modal-pc-file" type="file" accept=".html,.htm">
+      <div class="modal-section-title" style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--blue);font-size:16px">↓</span>
+        Imports
       </div>
-      <div class="btn-row">
-        <button class="btn btn-green btn-sm" onclick="modalUploadPingCastle()">Importer</button>
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <!-- PingCastle -->
+        <div style="background:var(--card-alt);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--green)">PingCastle</div>
+          <div class="field" style="margin-bottom:10px">
+            <input id="modal-pc-file" type="file" accept=".html,.htm" style="font-size:12px">
+          </div>
+          <button class="btn btn-green btn-sm" style="width:100%" onclick="modalUploadPingCastle()">Importer</button>
+          <div class="modal-status" id="modal-pc-status" style="margin-top:8px"></div>
+        </div>
+
+        <!-- SharpHound -->
+        <div style="background:var(--card-alt);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--orange)">SharpHound</div>
+          <div class="bh-warning" id="modal-bh-warning" style="display:none;margin-bottom:10px;font-size:11px;padding:8px">
+            <strong id="modal-bh-other"></strong>
+          </div>
+          <div class="field" style="margin-bottom:10px">
+            <input id="modal-sh-file" type="file" accept=".zip" style="font-size:12px">
+          </div>
+          <button class="btn btn-orange btn-sm" style="width:100%" onclick="modalUploadSharpHound()">Importer</button>
+          <div class="modal-status" id="modal-sh-status" style="margin-top:8px"></div>
+        </div>
       </div>
-      <div class="modal-status" id="modal-pc-status"></div>
     </div>
 
-    <!-- SharpHound -->
+    <!-- Section : Rapports -->
     <div class="modal-section">
-      <div class="modal-section-title">Importer SharpHound dans BloodHound</div>
-      <div class="bh-warning" id="modal-bh-warning" style="display:none">
-        BloodHound contient actuellement des donnees de
-        <strong id="modal-bh-other"></strong>.
-        Pensez a vider BloodHound avant d'importer pour eviter les melanges.
+      <div class="modal-section-title" style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--blue);font-size:16px">📊</span>
+        Rapports
       </div>
-      <div class="field">
-        <label>Archive ZIP</label>
-        <input id="modal-sh-file" type="file" accept=".zip">
+      
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <!-- AD-Miner -->
+        <div style="background:var(--card-alt);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">AD-Miner</div>
+          <p style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.4">
+            Génère le rapport à partir des données BloodHound
+          </p>
+          <button class="btn btn-blue btn-sm" style="width:100%" onclick="modalGenerateAdMiner()">Générer</button>
+          <div class="modal-status" id="modal-am-status" style="margin-top:8px"></div>
+        </div>
+
+        <!-- Sources SharpHound -->
+        <div style="background:var(--card-alt);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Sources SharpHound</div>
+          <div id="modal-sh-dl-list" style="font-size:12px">
+            <span style="color:var(--dim)">Chargement...</span>
+          </div>
+        </div>
       </div>
-      <div class="btn-row">
-        <button class="btn btn-orange btn-sm" onclick="modalUploadSharpHound()">Importer</button>
-      </div>
-      <div class="modal-status" id="modal-sh-status"></div>
     </div>
 
-    <!-- AD-Miner -->
+    <!-- Section : Organisation -->
     <div class="modal-section">
-      <div class="modal-section-title">Generer rapport AD-Miner</div>
-      <p class="modal-hint">
-        Les donnees SharpHound doivent etre ingérees dans BloodHound avant de lancer la génération.
-      </p>
-      <button class="btn btn-orange btn-sm" onclick="modalGenerateAdMiner()">Generer AD-Miner</button>
-      <div class="modal-status" id="modal-am-status"></div>
-    </div>
-
-    <!-- Télécharger SharpHound source -->
-    <div class="modal-section">
-      <div class="modal-section-title">Télécharger source SharpHound</div>
-      <div id="modal-sh-dl-list"><span style="color:var(--dim);font-size:13px">Chargement...</span></div>
-    </div>
-
-    <!-- Tags -->
-    <div class="modal-section">
-      <div class="modal-section-title">Tags</div>
-      <p class="modal-hint">Organisez ce client avec des tags</p>
+      <div class="modal-section-title" style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--blue);font-size:16px">🏷️</span>
+        Organisation
+      </div>
       <div id="modal-client-tags" style="display:flex;flex-wrap:wrap;gap:8px">
         <span style="color:var(--dim);font-size:13px">Chargement...</span>
       </div>
@@ -1445,9 +1461,12 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
 
     <!-- Zone dangereuse -->
     <div class="modal-section danger">
-      <div class="modal-section-title">Zone dangereuse</div>
+      <div class="modal-section-title" style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--red);font-size:16px">⚠️</span>
+        Zone dangereuse
+      </div>
       <p class="modal-hint">
-        Supprime definitivement tous les rapports et fichiers sources de ce client.
+        Supprime définitivement tous les rapports et fichiers sources de ce client.
       </p>
       <button class="btn btn-red btn-sm" onclick="deleteClient()">Supprimer ce client</button>
       <div class="modal-status" id="modal-del-status"></div>
