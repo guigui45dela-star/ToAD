@@ -1075,6 +1075,66 @@ input[type="color"] {
   border-radius: 50%;
   flex-shrink: 0;
 }
+
+/* ── Audit Logs ─────────────────────────────────────────────────────────── */
+.audit-log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.audit-log-entry:last-child {
+  border-bottom: none;
+}
+.audit-log-entry:hover {
+  background: var(--card-alt);
+}
+.audit-log-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.audit-log-icon.success {
+  background: rgba(45,214,110,0.18);
+  color: var(--green);
+}
+.audit-log-icon.error {
+  background: rgba(255,82,82,0.18);
+  color: var(--red);
+}
+.audit-log-icon.info {
+  background: rgba(77,159,255,0.18);
+  color: var(--blue);
+}
+.audit-log-content {
+  flex: 1;
+  min-width: 0;
+}
+.audit-log-action {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.audit-log-meta {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.audit-log-details {
+  font-size: 11px;
+  color: var(--dim);
+  margin-top: 4px;
+  font-family: monospace;
+}
 </style>
 </head>
 <body>
@@ -1547,6 +1607,17 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
         <button class="btn btn-blue btn-sm" onclick="openTagFormModal()">Nouveau tag</button>
       </div>
       <div id="tags-table-container">
+        <span style="color:var(--dim);font-size:13px">Chargement...</span>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Journal d'audit</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <p class="modal-hint" style="margin:0">Historique des actions de sécurité</p>
+        <button class="btn btn-ghost btn-sm" onclick="loadAuditLogs()">Rafraîchir</button>
+      </div>
+      <div id="audit-logs-container" style="max-height:300px;overflow-y:auto">
         <span style="color:var(--dim);font-size:13px">Chargement...</span>
       </div>
     </div>
@@ -2445,7 +2516,47 @@ let allUsers = [];
 async function openAdminModal() {
   if (!currentUser || currentUser.role !== 'admin') return;
   openModal('modal-admin');
-  await Promise.all([loadUsers(), loadTags()]);
+  await Promise.all([loadUsers(), loadTags(), loadAuditLogs()]);
+}
+
+async function loadAuditLogs() {
+  const container = document.getElementById('audit-logs-container');
+  if (!container) return;
+  container.innerHTML = '<span style="color:var(--dim);font-size:13px">Chargement...</span>';
+  try {
+    const r = await authFetch('/api/audit-logs?limit=50');
+    if (!r.ok) {
+      container.innerHTML = '<span style="color:var(--red);font-size:13px">Erreur de chargement</span>';
+      return;
+    }
+    const logs = await r.json();
+    if (!logs.length) {
+      container.innerHTML = '<span style="color:var(--dim);font-size:13px">Aucun log disponible</span>';
+      return;
+    }
+    container.innerHTML = logs.map(log => {
+      const icon = log.success === false ? 'error' : (log.action.includes('login') || log.action.includes('logout') ? 'info' : 'success');
+      const iconChar = log.success === false ? '✗' : (log.action.includes('login') ? '→' : log.action.includes('logout') ? '←' : '✓');
+      const timestamp = log.timestamp ? new Date(log.timestamp).toLocaleString('fr-FR') : '';
+      const details = log.details ? JSON.stringify(log.details) : '';
+      return `
+        <div class="audit-log-entry">
+          <div class="audit-log-icon ${icon}">${iconChar}</div>
+          <div class="audit-log-content">
+            <div class="audit-log-action">${esc(log.action)}</div>
+            <div class="audit-log-meta">
+              <span>${esc(timestamp)}</span>
+              <span>${esc(log.username || 'Système')}</span>
+              <span>${esc(log.ip_address || '')}</span>
+            </div>
+            ${details ? `<div class="audit-log-details">${esc(details)}</div>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    container.innerHTML = '<span style="color:var(--red);font-size:13px">Erreur: ' + esc(String(e)) + '</span>';
+  }
 }
 
 async function loadUsers() {

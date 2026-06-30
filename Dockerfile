@@ -15,16 +15,21 @@ RUN apt update && apt install -y --no-install-recommends \
 RUN git clone --depth 1 https://github.com/Mazars-Tech/AD_Miner.git /opt/AD_Miner \
     && pip install --no-cache-dir -r /opt/AD_Miner/requirements.txt
 
-# Install ToAD dependencies
-RUN pip install --no-cache-dir \
+# Install ToAD dependencies with security updates
+RUN pip install --no-cache-dir --upgrade pip wheel && \
+    pip install --no-cache-dir \
     fastapi==0.115.0 \
     uvicorn[standard]==0.32.0 \
     python-multipart==0.0.12 \
-    requests==2.32.3 \
+    requests==2.33.0 \
+    urllib3==2.7.0 \
+    idna==3.15 \
     pyyaml==6.0.2 \
     PyJWT[crypto]==2.9.0 \
     bcrypt==4.1.3 \
-    pydantic==2.9.2
+    pydantic==2.9.2 \
+    pyotp==2.9.0 \
+    qrcode==7.4.2
 
 # Copy application files
 COPY web/app.py /app/app.py

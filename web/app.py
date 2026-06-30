@@ -327,7 +327,11 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none';"
     return response
 
 
@@ -551,6 +555,33 @@ def clear_bloodhound_status():
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+
+
+AUDIT_LOG_FILE = ROOT / "config" / "audit.log"
+
+
+def audit_log(action: str, user: dict = None, request: Request = None, details: dict = None, success: bool = True):
+    """Log détaillé des actions critiques pour audit de sécurité"""
+    try:
+        log_entry = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "action": action,
+            "success": success,
+            "user_id": user.get("id") if user else None,
+            "username": user.get("username") if user else None,
+            "user_role": user.get("role") if user else None,
+            "ip_address": request.client.host if request and request.client else None,
+            "user_agent": request.headers.get("user-agent") if request else None,
+            "details": details or {},
+        }
+        
+        with open(AUDIT_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+        
+        if not success:
+            logger.warning(f"AUDIT FAILED: {action} - User: {log_entry.get('username')} - IP: {log_entry.get('ip_address')}")
+    except Exception as e:
+        logger.error(f"Failed to write audit log: {e}")
 
 
 def sanitize_slug(value: str) -> str:
@@ -1050,18 +1081,23 @@ def _ad_miner_background(job_id: str, clean_slug: str):
 
 
 @app.post("/api/auth/login")
-def auth_login(body: LoginRequest):
+def auth_login(body: LoginRequest, request: Request):
     if not JWT_SECRET:
+        audit_log("login_attempt", request=request, details={"username": body.username}, success=False)
         raise HTTPException(status_code=503, detail="Authentification JWT non configurée")
     with get_db() as conn:
         user = db_get_user_by_username(conn, body.username)
     if not user:
+        audit_log("login_failed", request=request, details={"username": body.username, "reason": "user_not_found"})
         raise HTTPException(status_code=401, detail="Identifiants invalides")
     if not verify_password(body.password, user["password_hash"]):
+        audit_log("login_failed", request=request, details={"username": body.username, "reason": "wrong_password"})
         raise HTTPException(status_code=401, detail="Identifiants invalides")
     if not user["is_active"]:
+        audit_log("login_failed", request=request, details={"username": body.username, "reason": "account_disabled"})
         raise HTTPException(status_code=401, detail="Compte désactivé")
     token = create_access_token({"sub": str(user["id"]), "username": user["username"], "role": user["role"]})
+    audit_log("login_success", user=user, request=request)
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -1076,9 +1112,11 @@ def auth_login(body: LoginRequest):
 @app.post("/api/auth/logout")
 def auth_logout(request: Request):
     auth_header = request.headers.get("Authorization", "")
+    user = getattr(request.state, "user", None)
     if auth_header.startswith("Bearer "):
         token = auth_header[7:]
         _token_blacklist.add(token)
+    audit_log("logout", user=user, request=request)
     return {"status": "ok", "message": "Deconnexion reussie"}
 
 
@@ -1103,54 +1141,66 @@ def list_users(admin: dict = Depends(require_role("admin"))):
 
 
 @app.post("/api/users")
-def create_user(body: UserCreate, admin: dict = Depends(require_role("admin"))):
+def create_user(body: UserCreate, request: Request, admin: dict = Depends(require_role("admin"))):
     if body.role not in VALID_ROLES:
+        audit_log("user_create_failed", user=admin, request=request, details={"username": body.username, "reason": "invalid_role"}, success=False)
         raise HTTPException(status_code=400, detail=f"Rôle invalide. Valeurs acceptées: {', '.join(sorted(VALID_ROLES))}")
     with get_db() as conn:
         existing = db_get_user_by_username(conn, body.username)
         if existing:
+            audit_log("user_create_failed", user=admin, request=request, details={"username": body.username, "reason": "username_taken"}, success=False)
             raise HTTPException(status_code=409, detail="Nom d'utilisateur déjà pris")
         pw_hash = hash_password(body.password)
         user_id = db_create_user(conn, body.username, pw_hash, body.role)
+    audit_log("user_created", user=admin, request=request, details={"new_user": body.username, "role": body.role})
     return {"status": "ok", "id": user_id, "message": f"Utilisateur « {body.username} » créé."}
 
 
 @app.put("/api/users/{user_id}")
-def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_role("admin"))):
+def update_user(user_id: int, body: UserUpdate, request: Request, admin: dict = Depends(require_role("admin"))):
     if body.role and body.role not in VALID_ROLES:
+        audit_log("user_update_failed", user=admin, request=request, details={"user_id": user_id, "reason": "invalid_role"}, success=False)
         raise HTTPException(status_code=400, detail=f"Rôle invalide. Valeurs acceptées: {', '.join(sorted(VALID_ROLES))}")
     with get_db() as conn:
         user = db_get_user_by_id(conn, user_id)
         if not user:
+            audit_log("user_update_failed", user=admin, request=request, details={"user_id": user_id, "reason": "not_found"}, success=False)
             raise HTTPException(status_code=404, detail="Utilisateur introuvable")
         if body.username:
             dup = db_get_user_by_username(conn, body.username)
             if dup and dup["id"] != user_id:
+                audit_log("user_update_failed", user=admin, request=request, details={"user_id": user_id, "reason": "username_taken"}, success=False)
                 raise HTTPException(status_code=409, detail="Nom d'utilisateur déjà pris")
         db_update_user(conn, user_id, username=body.username, role=body.role, is_active=body.is_active)
+    audit_log("user_updated", user=admin, request=request, details={"target_user_id": user_id, "changes": {k: v for k, v in body.dict().items() if v is not None}})
     return {"status": "ok", "message": "Utilisateur mis à jour."}
 
 
 @app.delete("/api/users/{user_id}")
-def delete_user(user_id: int, admin: dict = Depends(require_role("admin"))):
+def delete_user(user_id: int, request: Request, admin: dict = Depends(require_role("admin"))):
     with get_db() as conn:
         user = db_get_user_by_id(conn, user_id)
         if not user:
+            audit_log("user_delete_failed", user=admin, request=request, details={"user_id": user_id, "reason": "not_found"}, success=False)
             raise HTTPException(status_code=404, detail="Utilisateur introuvable")
         if user["id"] == admin.get("id"):
+            audit_log("user_delete_failed", user=admin, request=request, details={"user_id": user_id, "reason": "self_delete"}, success=False)
             raise HTTPException(status_code=400, detail="Impossible de supprimer votre propre compte")
         db_delete_user(conn, user_id)
+    audit_log("user_deleted", user=admin, request=request, details={"deleted_user": user["username"], "user_id": user_id})
     return {"status": "ok", "message": f"Utilisateur « {user['username']} » supprimé."}
 
 
 @app.post("/api/users/{user_id}/reset-password")
-def reset_password(user_id: int, body: PasswordReset, admin: dict = Depends(require_role("admin"))):
+def reset_password(user_id: int, body: PasswordReset, request: Request, admin: dict = Depends(require_role("admin"))):
     with get_db() as conn:
         user = db_get_user_by_id(conn, user_id)
         if not user:
+            audit_log("password_reset_failed", user=admin, request=request, details={"user_id": user_id, "reason": "not_found"}, success=False)
             raise HTTPException(status_code=404, detail="Utilisateur introuvable")
         new_hash = hash_password(body.new_password)
         db_change_password(conn, user_id, new_hash)
+    audit_log("password_reset", user=admin, request=request, details={"target_user_id": user_id, "target_username": user["username"]})
     return {"status": "ok", "message": "Mot de passe réinitialisé."}
 
 
@@ -1180,6 +1230,36 @@ def get_avatar(user_id: int):
     if not avatar_path.exists():
         raise HTTPException(status_code=404, detail="Avatar introuvable")
     return FileResponse(str(avatar_path), media_type="image/png")
+
+
+# ─── Audit logs ──────────────────────────────────────────────────────────────
+
+
+@app.get("/api/audit-logs")
+def get_audit_logs(limit: int = 100, request: Request = None, admin: dict = Depends(require_role("admin"))):
+    """Récupère les logs d'audit (admin only)"""
+    if not AUDIT_LOG_FILE.exists():
+        return []
+    
+    try:
+        with open(AUDIT_LOG_FILE, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        
+        # Parse les logs JSON et prend les plus récents
+        logs = []
+        for line in lines[-limit:]:
+            try:
+                logs.append(json.loads(line.strip()))
+            except json.JSONDecodeError:
+                continue
+        
+        # Retourne les plus récents en premier
+        logs.reverse()
+        audit_log("audit_logs_viewed", user=admin, request=request, details={"limit": limit, "count": len(logs)})
+        return logs
+    except Exception as e:
+        logger.error(f"Failed to read audit logs: {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la lecture des logs")
 
 
 # ─── Tags management ─────────────────────────────────────────────────────────
@@ -1390,10 +1470,11 @@ def create_client(name: str = Form(...), slug: str = Form(...), user: dict = Dep
 
 
 @app.delete("/api/clients/{slug}")
-def delete_client(slug: str, user: dict = Depends(require_role("admin", "user"))):
+def delete_client(slug: str, request: Request, user: dict = Depends(require_role("admin", "user"))):
     clean_slug = sanitize_slug(slug)
     client_path = ROOT / clean_slug
     if not client_path.exists():
+        audit_log("client_delete_failed", user=user, request=request, details={"slug": clean_slug, "reason": "not_found"}, success=False)
         raise HTTPException(status_code=404, detail="Client introuvable.")
     name = client_display_name(client_path, clean_slug)
     shutil.rmtree(client_path)
@@ -1401,6 +1482,7 @@ def delete_client(slug: str, user: dict = Depends(require_role("admin", "user"))
     bh = read_bloodhound_status()
     if bh.get("slug") == clean_slug:
         clear_bloodhound_status()
+    audit_log("client_deleted", user=user, request=request, details={"slug": clean_slug, "name": name})
     return {"status": "ok", "message": f"Client « {name} » supprimé."}
 
 
@@ -1605,23 +1687,27 @@ async def create_full_audit(
 
 
 @app.post("/api/bloodhound/reset")
-def reset_bloodhound(user: dict = Depends(require_role("admin"))):
+def reset_bloodhound(request: Request, user: dict = Depends(require_role("admin"))):
     try:
         log_event("_system", "bloodhound_reset_started")
+        audit_log("bloodhound_reset_started", user=user, request=request)
         down = run_bloodhound_compose(["down", "-v"])
         if down.returncode != 0:
             logger.error(f"Docker compose down failed: {down.stderr}")
+            audit_log("bloodhound_reset_failed", user=user, request=request, details={"step": "down", "error": down.stderr}, success=False)
             raise HTTPException(
                 status_code=500, detail="Erreur lors de la réinitialisation BloodHound"
             )
         up = run_bloodhound_compose(["up", "-d"])
         if up.returncode != 0:
             logger.error(f"Docker compose up failed: {up.stderr}")
+            audit_log("bloodhound_reset_failed", user=user, request=request, details={"step": "up", "error": up.stderr}, success=False)
             raise HTTPException(
                 status_code=500, detail="Erreur lors du redémarrage BloodHound"
             )
         clear_bloodhound_status()
         log_event("_system", "bloodhound_reset_done")
+        audit_log("bloodhound_reset_completed", user=user, request=request)
         return {"status": "ok", "message": "BloodHound a été vidé et redémarré."}
     except subprocess.TimeoutExpired:
         raise HTTPException(
