@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import shutil
 import sqlite3
 import subprocess
@@ -64,6 +65,11 @@ RATE_LIMIT_WINDOW = 60
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global JWT_SECRET
+    if not JWT_SECRET and not API_TOKEN:
+        JWT_SECRET = secrets.token_hex(32)
+        logger.critical("Aucune auth configuree (JWT_SECRET/API_TOKEN). JWT_SECRET ephemere genere.")
+        logger.critical("Les tokens ne survivront pas a un redemarrage. Configurez JWT_SECRET dans .env")
     init_db()
     ensure_default_admin()
     yield
@@ -195,7 +201,13 @@ def ensure_default_admin():
         if db_count_users(conn) > 0:
             return
         username = os.getenv("ADMIN_DEFAULT_USERNAME", "admin")
-        password = ADMIN_DEFAULT_PASSWORD or "admin"
+        password = ADMIN_DEFAULT_PASSWORD
+        if not password or password == "admin":
+            password = secrets.token_urlsafe(16)
+            logger.warning("=" * 60)
+            logger.warning(f"Admin cree avec mot de passe aleatoire : {password}")
+            logger.warning("Changez-le immediatement apres la premiere connexion !")
+            logger.warning("=" * 60)
         pw_hash = hash_password(password)
         db_create_user(conn, username, pw_hash, "admin")
         logger.info(f"Default admin user created: {username}")
