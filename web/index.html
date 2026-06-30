@@ -576,6 +576,104 @@ input[type="file"]:hover { border-color: var(--blue); color: var(--text); }
   .search-input { width: 100%; }
 }
 
+/* Login overlay */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.login-overlay.hidden { display: none; }
+
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.login-logo {
+  width: 64px; height: 64px;
+  border-radius: 16px;
+  margin: 0 auto 20px;
+  overflow: hidden;
+}
+.login-logo img { width: 100%; height: 100%; object-fit: contain; }
+.login-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+.login-sub { font-size: 14px; color: var(--muted); margin-bottom: 28px; }
+.login-field { margin-bottom: 16px; text-align: left; }
+.login-field label {
+  display: block; font-size: 12px; font-weight: 700;
+  color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.06em; margin-bottom: 6px;
+}
+.login-field input {
+  width: 100%;
+  background: var(--card-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+}
+.login-field input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(77,159,255,0.15);
+}
+.login-error {
+  background: rgba(255,82,82,0.1);
+  border: 1px solid rgba(255,82,82,0.3);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--red);
+  margin-bottom: 16px;
+  display: none;
+}
+.login-error.visible { display: block; }
+.login-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--blue);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+}
+.login-btn:hover { background: var(--blue-h); }
+.login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.user-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.user-badge strong { color: var(--text); }
+.btn-logout {
+  background: transparent;
+  border: 1px solid var(--border-hi);
+  color: var(--muted);
+  padding: 5px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-logout:hover { background: var(--card-alt); color: var(--text); border-color: var(--red); }
+
 hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 
 /* ── Modal rappel ── */
@@ -694,6 +792,24 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 </head>
 <body>
 
+<div class="login-overlay" id="login-overlay">
+  <div class="login-card">
+    <div class="login-logo"><img src="/assets/logo.png" alt="ToAD"></div>
+    <div class="login-title">ToAD</div>
+    <div class="login-sub">Connexion requise</div>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-field">
+      <label>Identifiant</label>
+      <input type="text" id="login-username" placeholder="admin" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>Mot de passe</label>
+      <input type="password" id="login-password" placeholder="Mot de passe" autocomplete="current-password">
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Se connecter</button>
+  </div>
+</div>
+
 <!-- ── Header ──────────────────────────────────────────────────────────── -->
 <header class="header">
   <div class="header-brand">
@@ -711,6 +827,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
     <div class="stat-pill"><span>Clients</span><strong id="stat-clients">—</strong></div>
     <div class="stat-pill"><span>PingCastle</span><strong id="stat-pingcastle">—</strong></div>
     <div class="stat-pill"><span>AD-Miner</span><strong id="stat-adminer">—</strong></div>
+    <div class="user-badge" id="user-badge" style="display:none">
+      <strong id="user-name"></strong>
+      <button class="btn-logout" onclick="doLogout()">Deconnexion</button>
+    </div>
     <button class="btn btn-ghost btn-sm" onclick="openModal('modal-rappel')">Rappel</button>
   </div>
 </header>
@@ -1037,6 +1157,122 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
 <!-- ── Scripts ──────────────────────────────────────────────────────────── -->
 <script>
 let audits = [];
+let currentUser = null;
+
+async function authFetch(url, options = {}) {
+  const token = localStorage.getItem('toad_token');
+  if (!options.headers) options.headers = {};
+  if (token) options.headers['Authorization'] = 'Bearer ' + token;
+  const r = await fetch(url, options);
+  if (r.status === 401) {
+    localStorage.removeItem('toad_token');
+    currentUser = null;
+    showLogin();
+    throw new Error('Unauthorized');
+  }
+  return r;
+}
+
+function showLogin() {
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('login-error').classList.remove('visible');
+  document.getElementById('login-password').value = '';
+}
+
+function hideLogin() {
+  document.getElementById('login-overlay').classList.add('hidden');
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!username || !password) { showLoginError('Identifiant et mot de passe requis.'); return; }
+  const btn = document.getElementById('login-btn');
+  btn.disabled = true;
+  btn.textContent = 'Connexion...';
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      showLoginError(data.detail || 'Identifiants invalides.');
+      return;
+    }
+    const data = await r.json();
+    localStorage.setItem('toad_token', data.access_token);
+    currentUser = data.user;
+    hideLogin();
+    updateUserBadge();
+    loadAll();
+  } catch (e) {
+    showLoginError('Erreur de connexion.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Se connecter';
+  }
+}
+
+function doLogout() {
+  localStorage.removeItem('toad_token');
+  currentUser = null;
+  showLogin();
+}
+
+function updateUserBadge() {
+  const badge = document.getElementById('user-badge');
+  const nameEl = document.getElementById('user-name');
+  if (currentUser) {
+    badge.style.display = 'flex';
+    nameEl.textContent = currentUser.username;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+async function checkAuth() {
+  const token = localStorage.getItem('toad_token');
+  if (!token) { showLogin(); return; }
+  try {
+    const r = await fetch('/api/auth/me', {
+      headers: { 'Authorization': 'Bearer ' + token },
+    });
+    if (r.ok) {
+      currentUser = await r.json();
+      hideLogin();
+      updateUserBadge();
+      loadAll();
+    } else {
+      localStorage.removeItem('toad_token');
+      showLogin();
+    }
+  } catch {
+    showLogin();
+  }
+}
+
+async function downloadSharpHound(slug, filename) {
+  try {
+    const r = await authFetch('/api/clients/' + slug + '/sharphound/download/' + filename);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {}
+}
 let bhStatus = {};
 let activeJobs = new Map();
 let pollIntervals = new Map();
@@ -1071,7 +1307,7 @@ function startJobPolling(jobId, label, onDone) {
   updateJobsBar();
   const iv = setInterval(async () => {
     try {
-      const r = await fetch(`/api/jobs/${jobId}`);
+      const r = await authFetch(`/api/jobs/${jobId}`);
       if (!r.ok) { clearInterval(iv); return; }
       const job = await r.json();
       if (job.status === 'done') {
@@ -1189,7 +1425,7 @@ async function loadAll() {
 
 async function loadAudits() {
   try {
-    const r = await fetch('/api/audits');
+    const r = await authFetch('/api/audits');
     audits = await r.json();
     renderClients();
     updateStats();
@@ -1200,7 +1436,7 @@ async function loadAudits() {
 
 async function loadBhStatus() {
   try {
-    const r = await fetch('/api/bloodhound/status');
+    const r = await authFetch('/api/bloodhound/status');
     bhStatus = await r.json();
     updateBhHeader();
   } catch (_) {}
@@ -1318,7 +1554,7 @@ async function resetBloodHound() {
   if (!confirm('Vider BloodHound ? Cette action supprime toutes les données du graphe.')) return;
   setStatus('bh-status', 'Reinitialisation en cours...', 'info');
   try {
-    const r = await fetch('/api/bloodhound/reset', { method: 'POST' });
+    const r = await authFetch('/api/bloodhound/reset', { method: 'POST' });
     const d = await r.json();
     if (!r.ok) { setStatus('bh-status', d.detail, 'error'); showToast('Erreur', d.detail, 'error'); return; }
     setStatus('bh-status', d.message, 'success');
@@ -1349,7 +1585,7 @@ async function createFullAudit() {
 
   setStatus('fa-status', 'Envoi des fichiers...', 'info');
   try {
-    const r = await fetch('/api/audits/full', { method: 'POST', body: fd });
+    const r = await authFetch('/api/audits/full', { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) { setStatus('fa-status', d.detail, 'error'); return; }
     setStatus('fa-status', 'Audit lance — progression en cours...', 'info');
@@ -1373,7 +1609,7 @@ async function createClient() {
   fd.append('slug', slug);
   setStatus('nc-status', 'Creation...', 'info');
   try {
-    const r = await fetch('/api/clients', { method: 'POST', body: fd });
+    const r = await authFetch('/api/clients', { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) { setStatus('nc-status', d.detail, 'error'); return; }
     setStatus('nc-status', d.message, 'success');
@@ -1396,7 +1632,7 @@ async function modalUploadPingCastle() {
   fd.append('report', file.files[0]);
   setModalStatus('modal-pc-status', 'Import en cours...', 'info');
   try {
-    const r = await fetch(`/api/clients/${modalSlug}/pingcastle`, { method: 'POST', body: fd });
+    const r = await authFetch(`/api/clients/${modalSlug}/pingcastle`, { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) { setModalStatus('modal-pc-status', d.detail, 'error'); return; }
     setModalStatus('modal-pc-status', d.message, 'success');
@@ -1416,7 +1652,7 @@ async function modalUploadSharpHound() {
   fd.append('zip_file', file.files[0]);
   setModalStatus('modal-sh-status', 'Upload vers BloodHound...', 'info');
   try {
-    const r = await fetch(`/api/clients/${modalSlug}/sharphound`, { method: 'POST', body: fd });
+    const r = await authFetch(`/api/clients/${modalSlug}/sharphound`, { method: 'POST', body: fd });
     const d = await r.json();
     if (!r.ok) { setModalStatus('modal-sh-status', d.detail, 'error'); return; }
     setModalStatus('modal-sh-status', d.message, 'success');
@@ -1436,7 +1672,7 @@ async function modalGenerateAdMiner() {
   if (!confirm(`Generer AD-Miner pour « ${modalSlug} » ?\nLe ZIP SharpHound doit etre ingere dans BloodHound.`)) return;
   setModalStatus('modal-am-status', 'Generation lancee...', 'info');
   try {
-    const r = await fetch(`/api/clients/${modalSlug}/ad-miner/generate`, { method: 'POST' });
+    const r = await authFetch(`/api/clients/${modalSlug}/ad-miner/generate`, { method: 'POST' });
     const d = await r.json();
     if (!r.ok) { setModalStatus('modal-am-status', d.detail, 'error'); return; }
     startJobPolling(d.job_id, `AD-Miner — ${modalSlug}`, () => setModalStatus('modal-am-status', 'Rapport genere.', 'success'));
@@ -1451,7 +1687,7 @@ async function loadSharpHoundFiles(slug) {
   const el = document.getElementById('modal-sh-dl-list');
   el.innerHTML = '<span style="color:var(--dim);font-size:13px">Chargement...</span>';
   try {
-    const r = await fetch(`/api/clients/${slug}/sharphound/files`);
+    const r = await authFetch(`/api/clients/${slug}/sharphound/files`);
     const files = await r.json();
     if (!files.length) {
       el.innerHTML = '<span style="color:var(--dim);font-size:13px">Aucune source archivée.</span>';
@@ -1463,11 +1699,10 @@ async function loadSharpHoundFiles(slug) {
           <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(f.filename)}</div>
           <div style="font-size:12px;color:var(--dim)">${esc(f.date)} — ${(f.size/1024/1024).toFixed(1)} Mo</div>
         </div>
-        <a class="btn btn-blue btn-sm"
-           href="/api/clients/${esc(slug)}/sharphound/download/${esc(f.filename)}"
-           download="${esc(f.filename)}">
+        <button class="btn btn-blue btn-sm"
+           onclick="downloadSharpHound('${esc(slug)}','${esc(f.filename)}')">
           Télécharger
-        </a>
+        </button>
       </div>
     `).join('');
   } catch (e) {
@@ -1482,7 +1717,7 @@ async function deleteClient() {
   if (!confirm(`Supprimer definitivement le client « ${name} » ?\n\nTous les rapports et fichiers sources seront effaces. Cette action est irreversible.`)) return;
   setModalStatus('modal-del-status', 'Suppression...', 'info');
   try {
-    const r = await fetch(`/api/clients/${modalSlug}`, { method: 'DELETE' });
+    const r = await authFetch(`/api/clients/${modalSlug}`, { method: 'DELETE' });
     const d = await r.json();
     if (!r.ok) { setModalStatus('modal-del-status', d.detail, 'error'); return; }
     showToast('Client supprime', d.message, 'info');
@@ -1512,10 +1747,15 @@ function backToRappelMenu() {
 
 document.getElementById('search').addEventListener('input', renderClients);
 
-loadAll();
+document.getElementById('login-password').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') doLogin();
+});
 
-// Rafraichissement auto toutes les 30 secondes
-setInterval(loadAll, 30000);
+checkAuth();
+
+setInterval(function() {
+  if (currentUser) loadAll();
+}, 30000);
 </script>
 </body>
 </html>
