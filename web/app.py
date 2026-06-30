@@ -10,7 +10,7 @@ import time
 import uuid
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -62,7 +62,14 @@ MAX_SHARPHOUND_SIZE = 500 * 1024 * 1024
 RATE_LIMIT_MAX = 120
 RATE_LIMIT_WINDOW = 60
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    ensure_default_admin()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 _job_executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="toad-job")
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 
@@ -922,15 +929,6 @@ def _ad_miner_background(job_id: str, clean_slug: str):
         job_error(job_id, "Timeout lors de la génération AD-Miner.")
     except Exception as e:
         job_error(job_id, str(e))
-
-
-# ─── Startup ──────────────────────────────────────────────────────────────────
-
-
-@app.on_event("startup")
-def on_startup():
-    init_db()
-    ensure_default_admin()
 
 
 # ─── Auth endpoints ───────────────────────────────────────────────────────────
