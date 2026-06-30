@@ -55,6 +55,7 @@ ADMIN_DEFAULT_PASSWORD = os.getenv("ADMIN_DEFAULT_PASSWORD", "")
 
 DB_PATH = ROOT / "config" / "toad_users.db"
 AVATARS_DIR = ROOT / "config" / "avatars"
+TAGS_FILE = ROOT / "config" / "tags.json"
 
 VALID_ROLES = {"admin", "user", "viewer"}
 
@@ -102,6 +103,20 @@ class PasswordReset(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class TagCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=50)
+    color: str = Field(default="#4d9fff", pattern=r"^#[0-9a-fA-F]{6}$")
+
+
+class TagUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=50)
+    color: Optional[str] = Field(None, pattern=r"^#[0-9a-fA-F]{6}$")
+
+
+class ClientTagsUpdate(BaseModel):
+    tags: list[str]
 
 
 @contextmanager
@@ -1167,11 +1182,122 @@ def get_avatar(user_id: int):
     return FileResponse(str(avatar_path), media_type="image/png")
 
 
+# ─── Tags management ─────────────────────────────────────────────────────────
+
+
+def load_tags() -> dict:
+    if TAGS_FILE.exists():
+        try:
+            return json.loads(TAGS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+
+def save_tags(tags: dict):
+    TAGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    TAGS_FILE.write_text(
+        json.dumps(tags, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+@app.get("/api/tags")
+def list_tags(user: dict = Depends(require_role("admin", "user", "viewer"))):
+    return load_tags()
+
+
+@app.post("/api/tags")
+def create_tag(body: TagCreate, admin: dict = Depends(require_role("admin"))):
+    tags = load_tags()
+    slug = re.sub(r"[^a-z0-9]+", "-", body.name.lower()).strip("-")
+    if not slug:
+        raise HTTPException(status_code=400, detail="Nom de tag invalide")
+    if slug in tags:
+        raise HTTPException(status_code=409, detail="Ce tag existe déjà")
+    tags[slug] = {"name": body.name, "color": body.color}
+    save_tags(tags)
+    log_event("_system", f"tag_created slug={slug}")
+    return {"status": "ok", "slug": slug, "message": f"Tag « {body.name} » créé."}
+
+
+@app.put("/api/tags/{slug}")
+def update_tag(slug: str, body: TagUpdate, admin: dict = Depends(require_role("admin"))):
+    tags = load_tags()
+    if slug not in tags:
+        raise HTTPException(status_code=404, detail="Tag introuvable")
+    if body.name is not None:
+        tags[slug]["name"] = body.name
+    if body.color is not None:
+        tags[slug]["color"] = body.color
+    save_tags(tags)
+    log_event("_system", f"tag_updated slug={slug}")
+    return {"status": "ok", "message": "Tag mis à jour."}
+
+
+@app.delete("/api/tags/{slug}")
+def delete_tag(slug: str, admin: dict = Depends(require_role("admin"))):
+    tags = load_tags()
+    if slug not in tags:
+        raise HTTPException(status_code=404, detail="Tag introuvable")
+    tag_name = tags[slug]["name"]
+    del tags[slug]
+    save_tags(tags)
+    # Remove tag from all clients
+    if ROOT.exists():
+        for client_path in ROOT.iterdir():
+            if not client_path.is_dir() or client_path.name.startswith("_") or client_path.name == "config":
+                continue
+            metadata_file = client_path / "client.json"
+            if metadata_file.exists():
+                try:
+                    metadata = json.loads(metadata_file.read_text(encoding="utf-8"))
+                    if "tags" in metadata and slug in metadata["tags"]:
+                        metadata["tags"].remove(slug)
+                        metadata_file.write_text(
+                            json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8"
+                        )
+                except Exception:
+                    pass
+    log_event("_system", f"tag_deleted slug={slug}")
+    return {"status": "ok", "message": f"Tag « {tag_name} » supprimé."}
+
+
+@app.get("/api/clients/{slug}/tags")
+def get_client_tags(slug: str, user: dict = Depends(require_role("admin", "user", "viewer"))):
+    clean_slug = sanitize_slug(slug)
+    client_path = ROOT / clean_slug
+    if not client_path.exists():
+        raise HTTPException(status_code=404, detail="Client introuvable.")
+    metadata = read_client_metadata(client_path)
+    return metadata.get("tags", [])
+
+
+@app.put("/api/clients/{slug}/tags")
+def update_client_tags(slug: str, body: ClientTagsUpdate, user: dict = Depends(require_role("admin", "user"))):
+    clean_slug = sanitize_slug(slug)
+    client_path = ROOT / clean_slug
+    if not client_path.exists():
+        raise HTTPException(status_code=404, detail="Client introuvable.")
+    # Validate all tags exist
+    tags = load_tags()
+    for tag_slug in body.tags:
+        if tag_slug not in tags:
+            raise HTTPException(status_code=400, detail=f"Tag '{tag_slug}' inexistant")
+    metadata = read_client_metadata(client_path)
+    metadata["tags"] = body.tags
+    metadata_file = client_path / "client.json"
+    metadata_file.write_text(
+        json.dumps(metadata, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    log_event(clean_slug, f"tags_updated tags={','.join(body.tags)}")
+    return {"status": "ok", "message": "Tags mis à jour."}
+
+
 # ─── API routes ───────────────────────────────────────────────────────────────
 
 
 @app.get("/api/audits")
-def audits(user: dict = Depends(require_role("admin", "user", "viewer"))):
+def audits(tag: Optional[str] = None, user: dict = Depends(require_role("admin", "user", "viewer"))):
     result = []
     if not ROOT.exists():
         return result
@@ -1185,6 +1311,10 @@ def audits(user: dict = Depends(require_role("admin", "user", "viewer"))):
         ad_miner_index = client_path / "ad-miner" / "index.html"
         pingcastle_index = client_path / "pingcastle" / "index.html"
         metadata = read_client_metadata(client_path)
+        client_tags = metadata.get("tags", [])
+        # Filter by tag if specified
+        if tag and tag not in client_tags:
+            continue
         result.append(
             {
                 "slug": slug,
@@ -1212,6 +1342,7 @@ def audits(user: dict = Depends(require_role("admin", "user", "viewer"))):
                     ),
                 },
                 "bloodhound_active": bh_active_slug == slug,
+                "tags": client_tags,
             }
         )
     return result

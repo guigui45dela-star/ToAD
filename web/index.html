@@ -911,6 +911,110 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
   height: 100%;
   object-fit: cover;
 }
+
+/* ── Tags ─────────────────────────────────────────────────────────────── */
+.tag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.tag-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tag-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.tag-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  transition: all 0.15s;
+}
+.tag-filter-btn:hover {
+  border-color: var(--border-hi);
+  color: var(--text);
+}
+.tag-filter-btn.active {
+  border-color: var(--blue);
+  background: rgba(77,159,255,0.12);
+  color: var(--blue);
+}
+.tag-filter-btn .tag-filter-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tags-admin-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.tags-admin-table th,
+.tags-admin-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.tags-admin-table th {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.tags-admin-table tr:hover {
+  background: var(--card-alt);
+}
+.color-preview {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  display: inline-block;
+  vertical-align: middle;
+}
+.tag-form-row {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+.tag-form-row .field { flex: 1; }
+input[type="color"] {
+  width: 50px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card-alt);
+  cursor: pointer;
+  padding: 2px;
+}
 </style>
 </head>
 <body>
@@ -1029,6 +1133,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
     <button class="btn btn-blue btn-sm" onclick="openNewClientModal()">Nouveau client</button>
   </div>
 </div>
+
+<div class="tag-filter-bar" id="tag-filter-bar"></div>
 
 <div class="clients-grid" id="clients"></div>
 
@@ -1299,10 +1405,44 @@ Add-MpPreference -ExclusionPath "C:\AuditAD"</div>
     </div>
 
     <div class="modal-section">
+      <div class="modal-section-title">Tags</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <p class="modal-hint" style="margin:0">Organisez vos clients avec des tags colorés</p>
+        <button class="btn btn-blue btn-sm" onclick="openTagFormModal()">Nouveau tag</button>
+      </div>
+      <div id="tags-table-container">
+        <span style="color:var(--dim);font-size:13px">Chargement...</span>
+      </div>
+    </div>
+
+    <div class="modal-section">
       <div class="modal-section-title">Paramètres système</div>
       <p class="modal-hint">Configuration globale de la plateforme</p>
       <button class="btn btn-blue btn-sm" onclick="openSettingsModal()">Configurer</button>
     </div>
+  </div>
+</div>
+
+<!-- ── Modal : Formulaire tag ──────────────────────────────────────────── -->
+<div class="modal-overlay" id="modal-tag-form" onclick="closeModalOnOverlay(event,'modal-tag-form')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div class="modal-title" id="tag-form-title">Nouveau tag</div>
+      <button class="modal-close" onclick="closeModal('modal-tag-form')">x</button>
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>Nom du tag</label>
+      <input id="tf-name" type="text" placeholder="Client VIP" maxlength="50">
+    </div>
+    <div class="field" style="margin-bottom:14px">
+      <label>Couleur</label>
+      <input id="tf-color" type="color" value="#4d9fff">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('modal-tag-form')">Annuler</button>
+      <button class="btn btn-blue" id="tf-submit-btn" onclick="submitTagForm()">Créer</button>
+    </div>
+    <div class="modal-status" id="tf-status"></div>
   </div>
 </div>
 
@@ -1767,7 +1907,8 @@ async function loadAll() {
 
 async function loadAudits() {
   try {
-    const r = await authFetch('/api/audits');
+    const url = activeTagFilter ? '/api/audits?tag=' + encodeURIComponent(activeTagFilter) : '/api/audits';
+    const r = await authFetch(url);
     audits = await r.json();
     renderClients();
     updateStats();
@@ -1823,11 +1964,25 @@ function renderClients() {
     const shDate = c.sources && c.sources.sharphound_date;
     const shCount = c.sources && c.sources.sharphound_count;
     const bh = c.bloodhound_active;
+    const tags = c.tags || [];
 
     const bhBadge = bh && bhStatus.file ? `
       <div class="bh-card-badge">
         <div class="bh-card-badge-dot"></div>
         <span class="bh-card-badge-text">BloodHound : ${esc(bhStatus.file)}</span>
+      </div>
+    ` : '';
+
+    const tagsHtml = tags.length > 0 ? `
+      <div class="tags-container">
+        ${tags.map(tagSlug => {
+          const tag = allTags[tagSlug];
+          if (!tag) return '';
+          return `<span class="tag-badge" style="background:${esc(tag.color)}22;color:${esc(tag.color)};border:1px solid ${esc(tag.color)}44">
+            <span class="tag-badge-dot" style="background:${esc(tag.color)}"></span>
+            ${esc(tag.name)}
+          </span>`;
+        }).join('')}
       </div>
     ` : '';
 
@@ -1865,6 +2020,8 @@ function renderClients() {
             <span class="indicator-date">${shDate ? esc(shDate) + (shCount > 1 ? ' (' + shCount + ' fichiers)' : '') : 'Aucun'}</span>
           </div>
         </div>
+
+        ${tagsHtml}
 
         ${lastAudit}
 
@@ -2093,7 +2250,7 @@ let allUsers = [];
 async function openAdminModal() {
   if (!currentUser || currentUser.role !== 'admin') return;
   openModal('modal-admin');
-  await loadUsers();
+  await Promise.all([loadUsers(), loadTags()]);
 }
 
 async function loadUsers() {
@@ -2253,6 +2410,160 @@ async function deleteUser(userId, username) {
   }
 }
 
+// ── Tags management ──────────────────────────────────────────────────────
+
+let allTags = {};
+let editingTagSlug = null;
+let activeTagFilter = null;
+
+async function loadTags() {
+  try {
+    const r = await authFetch('/api/tags');
+    allTags = await r.json();
+    renderTagsTable();
+    renderTagFilterBar();
+  } catch (e) {
+    console.warn('Failed to load tags', e);
+  }
+}
+
+function renderTagsTable() {
+  const container = document.getElementById('tags-table-container');
+  if (!container) return;
+  const slugs = Object.keys(allTags);
+  if (!slugs.length) {
+    container.innerHTML = '<span style="color:var(--dim);font-size:13px">Aucun tag créé</span>';
+    return;
+  }
+  let html = '<table class="tags-admin-table"><thead><tr>';
+  html += '<th>Couleur</th><th>Nom</th><th>Slug</th><th>Actions</th>';
+  html += '</tr></thead><tbody>';
+  for (const slug of slugs) {
+    const tag = allTags[slug];
+    html += '<tr>';
+    html += '<td><span class="color-preview" style="background:' + esc(tag.color) + '"></span></td>';
+    html += '<td style="font-weight:600">' + esc(tag.name) + '</td>';
+    html += '<td style="color:var(--dim);font-size:13px;font-family:monospace">' + esc(slug) + '</td>';
+    html += '<td>';
+    html += '<button class="btn btn-ghost btn-sm" onclick="editTag(\'' + esc(slug) + '\')" style="margin-right:4px">Modifier</button>';
+    html += '<button class="btn btn-red btn-sm" onclick="deleteTag(\'' + esc(slug) + '\', \'' + esc(tag.name) + '\')">Supprimer</button>';
+    html += '</td>';
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function renderTagFilterBar() {
+  const bar = document.getElementById('tag-filter-bar');
+  if (!bar) return;
+  const slugs = Object.keys(allTags);
+  if (!slugs.length) {
+    bar.innerHTML = '';
+    return;
+  }
+  let html = '<span style="font-size:12px;color:var(--dim);font-weight:600;text-transform:uppercase;letter-spacing:0.06em">Filtrer :</span>';
+  html += '<button class="tag-filter-btn' + (!activeTagFilter ? ' active' : '') + '" onclick="filterByTag(null)">Tous</button>';
+  for (const slug of slugs) {
+    const tag = allTags[slug];
+    const isActive = activeTagFilter === slug;
+    html += '<button class="tag-filter-btn' + (isActive ? ' active' : '') + '" onclick="filterByTag(\'' + esc(slug) + '\')">';
+    html += '<span class="tag-filter-dot" style="background:' + esc(tag.color) + '"></span>';
+    html += esc(tag.name);
+    html += '</button>';
+  }
+  bar.innerHTML = html;
+}
+
+function filterByTag(slug) {
+  activeTagFilter = slug;
+  renderTagFilterBar();
+  loadAudits();
+}
+
+function openTagFormModal(slug) {
+  editingTagSlug = slug || null;
+  const title = document.getElementById('tag-form-title');
+  const submitBtn = document.getElementById('tf-submit-btn');
+  const status = document.getElementById('tf-status');
+  status.textContent = '';
+
+  if (editingTagSlug && allTags[editingTagSlug]) {
+    const tag = allTags[editingTagSlug];
+    title.textContent = 'Modifier le tag';
+    submitBtn.textContent = 'Enregistrer';
+    document.getElementById('tf-name').value = tag.name;
+    document.getElementById('tf-color').value = tag.color;
+  } else {
+    editingTagSlug = null;
+    title.textContent = 'Nouveau tag';
+    submitBtn.textContent = 'Créer';
+    document.getElementById('tf-name').value = '';
+    document.getElementById('tf-color').value = '#4d9fff';
+  }
+  openModal('modal-tag-form');
+}
+
+function editTag(slug) {
+  openTagFormModal(slug);
+}
+
+async function submitTagForm() {
+  const name = document.getElementById('tf-name').value.trim();
+  const color = document.getElementById('tf-color').value;
+  const status = document.getElementById('tf-status');
+
+  if (!name) { setModalStatus('tf-status', 'Nom requis.', 'error'); return; }
+
+  status.textContent = editingTagSlug ? 'Modification...' : 'Création...';
+  status.className = 'modal-status info';
+
+  try {
+    let r;
+    if (editingTagSlug) {
+      r = await authFetch('/api/tags/' + editingTagSlug, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color }),
+      });
+    } else {
+      r = await authFetch('/api/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color }),
+      });
+    }
+    if (!r.ok) {
+      const d = await r.json();
+      setModalStatus('tf-status', d.detail || 'Erreur', 'error');
+      return;
+    }
+    showToast(editingTagSlug ? 'Tag modifié' : 'Tag créé', name, 'success');
+    closeModal('modal-tag-form');
+    await loadTags();
+  } catch (e) {
+    setModalStatus('tf-status', String(e), 'error');
+  }
+}
+
+async function deleteTag(slug, name) {
+  if (!confirm('Supprimer le tag « ' + name + ' » ?\nIl sera retiré de tous les clients.')) return;
+  try {
+    const r = await authFetch('/api/tags/' + slug, { method: 'DELETE' });
+    if (!r.ok) {
+      const d = await r.json();
+      showToast('Erreur', d.detail || 'Impossible de supprimer', 'error');
+      return;
+    }
+    if (activeTagFilter === slug) activeTagFilter = null;
+    showToast('Tag supprimé', name, 'info');
+    await loadTags();
+    await loadAudits();
+  } catch (e) {
+    showToast('Erreur', String(e), 'error');
+  }
+}
+
 // ── Profil utilisateur ────────────────────────────────────────────────────
 
 function openProfileModal() {
@@ -2402,6 +2713,7 @@ document.getElementById('login-password').addEventListener('keydown', function(e
 });
 
 checkAuth();
+loadTags();
 
 setInterval(function() {
   if (currentUser) loadAll();
