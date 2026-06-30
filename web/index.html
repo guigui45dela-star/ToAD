@@ -1190,7 +1190,54 @@ input[type="color"] {
   <span class="section-title">Clients</span>
   <div class="section-right">
     <input id="search" type="search" class="search-input" placeholder="Rechercher...">
+    <select id="sort-select" class="search-input" style="width:180px">
+      <option value="name-asc">Nom (A-Z)</option>
+      <option value="name-desc">Nom (Z-A)</option>
+      <option value="created-desc">Plus récent</option>
+      <option value="created-asc">Plus ancien</option>
+      <option value="audit-desc">Dernier audit récent</option>
+      <option value="audit-asc">Dernier audit ancien</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="toggleAdvancedFilters()" id="filter-toggle-btn">Filtres</button>
     <button class="btn btn-blue btn-sm" onclick="openNewClientModal()">Nouveau client</button>
+  </div>
+</div>
+
+<div id="advanced-filters" style="display:none;margin-bottom:16px">
+  <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+    <div class="field" style="margin:0">
+      <label style="font-size:11px;margin-bottom:4px">Statut AD-Miner</label>
+      <select id="filter-adminer" style="width:140px">
+        <option value="">Tous</option>
+        <option value="present">Présent</option>
+        <option value="absent">Absent</option>
+      </select>
+    </div>
+    <div class="field" style="margin:0">
+      <label style="font-size:11px;margin-bottom:4px">Statut PingCastle</label>
+      <select id="filter-pingcastle" style="width:140px">
+        <option value="">Tous</option>
+        <option value="present">Présent</option>
+        <option value="absent">Absent</option>
+      </select>
+    </div>
+    <div class="field" style="margin:0">
+      <label style="font-size:11px;margin-bottom:4px">Source SharpHound</label>
+      <select id="filter-sharphound" style="width:140px">
+        <option value="">Tous</option>
+        <option value="present">Présente</option>
+        <option value="absent">Absente</option>
+      </select>
+    </div>
+    <div class="field" style="margin:0">
+      <label style="font-size:11px;margin-bottom:4px">BloodHound</label>
+      <select id="filter-bloodhound" style="width:140px">
+        <option value="">Tous</option>
+        <option value="active">Actif</option>
+        <option value="inactive">Inactif</option>
+      </select>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="clearAdvancedFilters()" style="margin-top:18px">Réinitialiser</button>
   </div>
 </div>
 
@@ -1821,6 +1868,8 @@ async function checkAuth() {
       currentUser = await r.json();
       hideLogin();
       updateUserBadge();
+      await loadTags();
+      loadFilters();
       loadAll();
     } else {
       localStorage.removeItem('toad_token');
@@ -2041,9 +2090,63 @@ function updateStats() {
 function renderClients() {
   const container = document.getElementById('clients');
   const filter = document.getElementById('search').value.toLowerCase();
-  const filtered = audits.filter(c =>
-    c.name.toLowerCase().includes(filter) || c.slug.toLowerCase().includes(filter)
-  );
+  const sort = document.getElementById('sort-select').value;
+  
+  // Filtres avancés
+  const filterAdminer = document.getElementById('filter-adminer').value;
+  const filterPingCastle = document.getElementById('filter-pingcastle').value;
+  const filterSharpHound = document.getElementById('filter-sharphound').value;
+  const filterBloodHound = document.getElementById('filter-bloodhound').value;
+  
+  let filtered = audits.filter(c => {
+    // Recherche textuelle (nom, slug, tags)
+    const searchMatch = !filter || 
+      c.name.toLowerCase().includes(filter) || 
+      c.slug.toLowerCase().includes(filter) ||
+      (c.tags && c.tags.some(t => {
+        const tag = allTags[t];
+        return tag && tag.name.toLowerCase().includes(filter);
+      }));
+    
+    // Filtres par statut
+    const adminerMatch = !filterAdminer || 
+      (filterAdminer === 'present' && c.ad_miner.available) ||
+      (filterAdminer === 'absent' && !c.ad_miner.available);
+    
+    const pingcastleMatch = !filterPingCastle || 
+      (filterPingCastle === 'present' && c.pingcastle.available) ||
+      (filterPingCastle === 'absent' && !c.pingcastle.available);
+    
+    const sharphoundMatch = !filterSharpHound || 
+      (filterSharpHound === 'present' && c.sources && c.sources.sharphound_date) ||
+      (filterSharpHound === 'absent' && (!c.sources || !c.sources.sharphound_date));
+    
+    const bloodhoundMatch = !filterBloodHound || 
+      (filterBloodHound === 'active' && c.bloodhound_active) ||
+      (filterBloodHound === 'inactive' && !c.bloodhound_active);
+    
+    return searchMatch && adminerMatch && pingcastleMatch && sharphoundMatch && bloodhoundMatch;
+  });
+  
+  // Tri
+  filtered.sort((a, b) => {
+    switch(sort) {
+      case 'name-asc':
+        return a.name.localeCompare(b.name);
+      case 'name-desc':
+        return b.name.localeCompare(a.name);
+      case 'created-desc':
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      case 'created-asc':
+        return (a.created_at || '').localeCompare(b.created_at || '');
+      case 'audit-desc':
+        return (b.last_audit_at || '').localeCompare(a.last_audit_at || '');
+      case 'audit-asc':
+        return (a.last_audit_at || '').localeCompare(b.last_audit_at || '');
+      default:
+        return 0;
+    }
+  });
 
   if (filtered.length === 0) {
     container.innerHTML = `<div class="empty-state">Aucun client trouve.</div>`;
@@ -2634,7 +2737,8 @@ function renderTagFilterBar() {
 function filterByTag(slug) {
   activeTagFilter = slug;
   renderTagFilterBar();
-  loadAudits();
+  renderClients();
+  saveFilters();
 }
 
 function openTagFormModal(slug) {
@@ -2860,9 +2964,105 @@ async function saveSettings() {
   }
 }
 
+// ── Filtres avancés ─────────────────────────────────────────────────────
+
+function toggleAdvancedFilters() {
+  const filters = document.getElementById('advanced-filters');
+  const btn = document.getElementById('filter-toggle-btn');
+  if (filters.style.display === 'none') {
+    filters.style.display = 'block';
+    btn.classList.add('btn-blue');
+    btn.classList.remove('btn-ghost');
+  } else {
+    filters.style.display = 'none';
+    btn.classList.remove('btn-blue');
+    btn.classList.add('btn-ghost');
+  }
+}
+
+function clearAdvancedFilters() {
+  document.getElementById('filter-adminer').value = '';
+  document.getElementById('filter-pingcastle').value = '';
+  document.getElementById('filter-sharphound').value = '';
+  document.getElementById('filter-bloodhound').value = '';
+  document.getElementById('search').value = '';
+  document.getElementById('sort-select').value = 'name-asc';
+  activeTagFilter = null;
+  renderTagFilterBar();
+  renderClients();
+  saveFilters();
+}
+
+function saveFilters() {
+  const filters = {
+    search: document.getElementById('search').value,
+    sort: document.getElementById('sort-select').value,
+    adminer: document.getElementById('filter-adminer').value,
+    pingcastle: document.getElementById('filter-pingcastle').value,
+    sharphound: document.getElementById('filter-sharphound').value,
+    bloodhound: document.getElementById('filter-bloodhound').value,
+    tag: activeTagFilter
+  };
+  localStorage.setItem('toad_filters', JSON.stringify(filters));
+}
+
+function loadFilters() {
+  const saved = localStorage.getItem('toad_filters');
+  if (!saved) return;
+  
+  try {
+    const filters = JSON.parse(saved);
+    if (filters.search) document.getElementById('search').value = filters.search;
+    if (filters.sort) document.getElementById('sort-select').value = filters.sort;
+    if (filters.adminer) document.getElementById('filter-adminer').value = filters.adminer;
+    if (filters.pingcastle) document.getElementById('filter-pingcastle').value = filters.pingcastle;
+    if (filters.sharphound) document.getElementById('filter-sharphound').value = filters.sharphound;
+    if (filters.bloodhound) document.getElementById('filter-bloodhound').value = filters.bloodhound;
+    if (filters.tag) {
+      activeTagFilter = filters.tag;
+      renderTagFilterBar();
+    }
+    
+    // Afficher les filtres avancés si un filtre est actif
+    if (filters.adminer || filters.pingcastle || filters.sharphound || filters.bloodhound) {
+      toggleAdvancedFilters();
+    }
+  } catch (e) {
+    console.warn('Failed to load filters', e);
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────
 
-document.getElementById('search').addEventListener('input', renderClients);
+document.getElementById('search').addEventListener('input', () => {
+  renderClients();
+  saveFilters();
+});
+
+document.getElementById('sort-select').addEventListener('change', () => {
+  renderClients();
+  saveFilters();
+});
+
+document.getElementById('filter-adminer').addEventListener('change', () => {
+  renderClients();
+  saveFilters();
+});
+
+document.getElementById('filter-pingcastle').addEventListener('change', () => {
+  renderClients();
+  saveFilters();
+});
+
+document.getElementById('filter-sharphound').addEventListener('change', () => {
+  renderClients();
+  saveFilters();
+});
+
+document.getElementById('filter-bloodhound').addEventListener('change', () => {
+  renderClients();
+  saveFilters();
+});
 
 document.getElementById('login-password').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') doLogin();
